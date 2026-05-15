@@ -42,7 +42,12 @@ import {
   PermissionPromptUnavailableError,
 } from "../errors.js";
 import { FileSystemHandlers } from "../filesystem.js";
-import { classifyPermissionDecision, resolvePermissionRequest } from "../permissions.js";
+import {
+  classifyPermissionDecision,
+  decisionToResponse,
+  inferToolKind,
+  resolvePermissionRequest,
+} from "../permissions.js";
 import { textPrompt } from "../prompt-content.js";
 import { extractRuntimeSessionId } from "../session/runtime-session-id.js";
 import { buildSpawnCommandOptions } from "../spawn-command-options.js";
@@ -267,6 +272,7 @@ export class AcpClient {
     promise: Promise<PromptResponse>;
   };
   private readonly cancellingSessionIds = new Set<string>();
+  private readonly permissionAbortControllers = new Map<string, AbortController>();
   private closing = false;
   private agentStartedAt?: string;
   private lastAgentExit?: AgentExitInfo;
@@ -769,6 +775,7 @@ export class AcpClient {
         this.activePrompt = undefined;
       }
       this.cancellingSessionIds.delete(sessionId);
+      this.abortAndDropPermissionSignal(sessionId);
       this.promptPermissionFailures.delete(sessionId);
     }
   }
@@ -848,6 +855,7 @@ export class AcpClient {
   async cancel(sessionId: string): Promise<void> {
     const connection = this.getConnection();
     this.cancellingSessionIds.add(sessionId);
+    this.abortAndDropPermissionSignal(sessionId);
     await this.runConnectionRequest(() =>
       connection.cancel({
         sessionId,
@@ -946,6 +954,10 @@ export class AcpClient {
     this.suppressReplaySessionUpdateMessages = false;
     this.activePrompt = undefined;
     this.cancellingSessionIds.clear();
+    for (const controller of this.permissionAbortControllers.values()) {
+      controller.abort();
+    }
+    this.permissionAbortControllers.clear();
     this.promptPermissionFailures.clear();
     this.loadedSessionId = undefined;
     this.initResult = undefined;
@@ -1204,6 +1216,49 @@ export class AcpClient {
       };
     }
 
+    if (this.options.onPermissionRequest) {
+      const signal = this.cancellationSignalForSession(params.sessionId);
+      try {
+        const decision = await this.options.onPermissionRequest(
+          {
+            sessionId: params.sessionId,
+            raw: params,
+            inferredKind: inferToolKind(params),
+          },
+          { signal },
+        );
+        if (signal.aborted || this.cancellingSessionIds.has(params.sessionId)) {
+          this.recordPermissionDecision("cancelled");
+          return {
+            outcome: {
+              outcome: "cancelled",
+            },
+          };
+        }
+        if (decision) {
+          const response = decisionToResponse(params, decision);
+          this.recordPermissionDecision(classifyPermissionDecision(params, response));
+          return response;
+        }
+      } catch (error) {
+        if (signal.aborted || this.cancellingSessionIds.has(params.sessionId)) {
+          this.recordPermissionDecision("cancelled");
+          return {
+            outcome: {
+              outcome: "cancelled",
+            },
+          };
+        }
+        // Fall through to the mode-based resolver so a host UI error
+        // doesn't take down the turn.
+        this.log(
+          `onPermissionRequest threw, falling through to mode-based resolver: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
     let response: RequestPermissionResponse;
     try {
       response = await resolvePermissionRequest(
@@ -1375,6 +1430,23 @@ export class AcpClient {
     params: ReleaseTerminalRequest,
   ): Promise<ReleaseTerminalResponse> {
     return await this.terminalManager.releaseTerminal(params);
+  }
+
+  private cancellationSignalForSession(sessionId: string): AbortSignal {
+    let controller = this.permissionAbortControllers.get(sessionId);
+    if (!controller) {
+      controller = new AbortController();
+      this.permissionAbortControllers.set(sessionId, controller);
+    }
+    return controller.signal;
+  }
+
+  private abortAndDropPermissionSignal(sessionId: string): void {
+    const controller = this.permissionAbortControllers.get(sessionId);
+    if (controller) {
+      controller.abort();
+      this.permissionAbortControllers.delete(sessionId);
+    }
   }
 
   private recordPermissionDecision(decision: "approved" | "denied" | "cancelled"): void {

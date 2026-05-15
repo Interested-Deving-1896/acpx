@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
 import { PermissionPromptUnavailableError } from "../src/errors.js";
-import { classifyPermissionDecision, resolvePermissionRequest } from "../src/permissions.js";
+import {
+  classifyPermissionDecision,
+  decisionToResponse,
+  inferToolKind,
+  resolvePermissionRequest,
+} from "../src/permissions.js";
 import { withMockedReadline, withTtyState } from "./tty-test-helpers.js";
 
 const BASE_OPTIONS = [
@@ -191,4 +196,67 @@ test("classifyPermissionDecision maps selected outcomes to approved, denied, or 
     }),
     "cancelled",
   );
+});
+
+test("decisionToResponse allow_once prefers allow_once over allow_always", () => {
+  const request = makeRequestWithTitle("tool", "edit", [
+    { optionId: "always", kind: "allow_always" },
+    { optionId: "once", kind: "allow_once" },
+    { optionId: "reject", kind: "reject_once" },
+  ]);
+  const response = decisionToResponse(request, { outcome: "allow_once" });
+  assert.deepEqual(response, { outcome: { outcome: "selected", optionId: "once" } });
+});
+
+test("decisionToResponse allow_always prefers allow_always over allow_once", () => {
+  const request = makeRequestWithTitle("tool", "edit", [
+    { optionId: "once", kind: "allow_once" },
+    { optionId: "always", kind: "allow_always" },
+    { optionId: "reject", kind: "reject_once" },
+  ]);
+  const response = decisionToResponse(request, { outcome: "allow_always" });
+  assert.deepEqual(response, { outcome: { outcome: "selected", optionId: "always" } });
+});
+
+test("decisionToResponse allow_once falls back to allow_always when allow_once is missing", () => {
+  const request = makeRequestWithTitle("tool", "edit", [
+    { optionId: "always", kind: "allow_always" },
+    { optionId: "reject", kind: "reject_once" },
+  ]);
+  const response = decisionToResponse(request, { outcome: "allow_once" });
+  assert.deepEqual(response, { outcome: { outcome: "selected", optionId: "always" } });
+});
+
+test("decisionToResponse reject_once falls back to reject_always", () => {
+  const onlyAlways = makeRequestWithTitle("tool", "edit", [
+    { optionId: "allow", kind: "allow_once" },
+    { optionId: "reject-always", kind: "reject_always" },
+  ]);
+  assert.deepEqual(decisionToResponse(onlyAlways, { outcome: "reject_once" }), {
+    outcome: { outcome: "selected", optionId: "reject-always" },
+  });
+});
+
+test("decisionToResponse cancels when no matching option exists", () => {
+  const request = makeRequestWithTitle("tool", "edit", [{ optionId: "allow", kind: "allow_once" }]);
+  assert.deepEqual(decisionToResponse(request, { outcome: "reject_once" }), {
+    outcome: { outcome: "cancelled" },
+  });
+});
+
+test("decisionToResponse cancel always returns cancelled", () => {
+  const request = makeRequestWithTitle("tool", "edit", [
+    { optionId: "allow", kind: "allow_once" },
+    { optionId: "reject", kind: "reject_once" },
+  ]);
+  assert.deepEqual(decisionToResponse(request, { outcome: "cancel" }), {
+    outcome: { outcome: "cancelled" },
+  });
+});
+
+test("inferToolKind classifies titles when toolCall.kind is missing", () => {
+  assert.equal(inferToolKind(makeRequest("edit")), "edit");
+  assert.equal(inferToolKind(makeRequestWithTitle("patch: foo.ts", undefined)), "edit");
+  assert.equal(inferToolKind(makeRequestWithTitle("cat README", undefined)), "read");
+  assert.equal(inferToolKind(makeRequestWithTitle("totally unknown", undefined)), "other");
 });

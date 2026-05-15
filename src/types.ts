@@ -2,13 +2,28 @@ import type {
   AgentCapabilities,
   AnyMessage,
   McpServer,
+  RequestPermissionRequest,
   SessionNotification,
   SessionConfigOption,
   SetSessionConfigOptionResponse,
   StopReason,
+  ToolKind,
 } from "@agentclientprotocol/sdk";
 export type { McpServer, SessionNotification } from "@agentclientprotocol/sdk";
 import type { PromptInput } from "./prompt-content.js";
+
+export type AcpPermissionRequest = {
+  sessionId: string;
+  raw: RequestPermissionRequest;
+  inferredKind: ToolKind | undefined;
+};
+
+export type AcpPermissionDecision =
+  | { outcome: "allow_once" }
+  | { outcome: "allow_always" }
+  | { outcome: "reject_once" }
+  | { outcome: "reject_always" }
+  | { outcome: "cancel" };
 
 export const EXIT_CODES = {
   SUCCESS: 0,
@@ -180,6 +195,10 @@ export type AcpClientOptions = {
   onAcpOutputMessage?: (direction: AcpMessageDirection, message: AcpJsonRpcMessage) => void;
   onSessionUpdate?: (notification: SessionNotification) => void;
   onClientOperation?: (operation: ClientOperation) => void;
+  onPermissionRequest?: (
+    req: AcpPermissionRequest,
+    ctx: { signal: AbortSignal },
+  ) => Promise<AcpPermissionDecision | undefined>;
 };
 
 export const SESSION_RECORD_SCHEMA = "acpx.session.v1" as const;

@@ -29,6 +29,8 @@ export {
 export type {
   AcpAgentRegistry,
   AcpFileSessionStoreOptions,
+  AcpPermissionDecision,
+  AcpPermissionRequest,
   AcpRuntime,
   AcpRuntimeCapabilities,
   AcpRuntimeDoctorReport,

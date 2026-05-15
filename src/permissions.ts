@@ -6,7 +6,11 @@ import {
 } from "@agentclientprotocol/sdk";
 import { PermissionPromptUnavailableError } from "./errors.js";
 import { promptForPermission } from "./permission-prompt.js";
-import type { NonInteractivePermissionPolicy, PermissionMode } from "./types.js";
+import type {
+  AcpPermissionDecision,
+  NonInteractivePermissionPolicy,
+  PermissionMode,
+} from "./types.js";
 
 type PermissionDecision = "approved" | "denied" | "cancelled";
 const PERMISSION_MODE_RANK: Record<PermissionMode, number> = {
@@ -36,7 +40,7 @@ function pickOption(
   return undefined;
 }
 
-function inferToolKind(params: RequestPermissionRequest): ToolKind | undefined {
+export function inferToolKind(params: RequestPermissionRequest): ToolKind | undefined {
   if (params.toolCall.kind) {
     return params.toolCall.kind;
   }
@@ -149,6 +153,27 @@ export async function resolvePermissionRequest(
     return selected(rejectOption.optionId);
   }
   return cancelled();
+}
+
+const DECISION_FALLBACK_ORDER: Record<
+  Exclude<AcpPermissionDecision["outcome"], "cancel">,
+  PermissionOption["kind"][]
+> = {
+  allow_once: ["allow_once", "allow_always"],
+  allow_always: ["allow_always", "allow_once"],
+  reject_once: ["reject_once", "reject_always"],
+  reject_always: ["reject_always", "reject_once"],
+};
+
+export function decisionToResponse(
+  params: RequestPermissionRequest,
+  decision: AcpPermissionDecision,
+): RequestPermissionResponse {
+  if (decision.outcome === "cancel") {
+    return cancelled();
+  }
+  const matched = pickOption(params.options ?? [], DECISION_FALLBACK_ORDER[decision.outcome]);
+  return matched ? selected(matched.optionId) : cancelled();
 }
 
 export function classifyPermissionDecision(

@@ -357,6 +357,203 @@ test("AcpClient handlePermissionRequest records approved decisions", async () =>
   });
 });
 
+test("AcpClient onPermissionRequest decision short-circuits the mode-based resolver", async () => {
+  let callbackInvocations = 0;
+  const client = makeClient({
+    permissionMode: "approve-reads",
+    nonInteractivePermissions: "deny",
+    onPermissionRequest: async (req) => {
+      callbackInvocations += 1;
+      assert.equal(req.sessionId, "session-cb-1");
+      assert.equal(req.inferredKind, "edit");
+      return { outcome: "allow_once" };
+    },
+  });
+
+  const response = await asInternals(client).handlePermissionRequest?.(
+    makePermissionRequest("session-cb-1", "edit"),
+  );
+
+  assert.deepEqual(response, {
+    outcome: {
+      outcome: "selected",
+      optionId: "allow",
+    },
+  });
+  assert.equal(callbackInvocations, 1);
+  assert.deepEqual(client.getPermissionStats(), {
+    requested: 1,
+    approved: 1,
+    denied: 0,
+    cancelled: 0,
+  });
+});
+
+test("AcpClient onPermissionRequest returning undefined falls through to mode-based resolver", async () => {
+  let callbackInvocations = 0;
+  const client = makeClient({
+    permissionMode: "approve-all",
+    onPermissionRequest: async () => {
+      callbackInvocations += 1;
+      return undefined;
+    },
+  });
+
+  const response = await asInternals(client).handlePermissionRequest?.(
+    makePermissionRequest("session-cb-2", "edit"),
+  );
+
+  assert.deepEqual(response, {
+    outcome: {
+      outcome: "selected",
+      optionId: "allow",
+    },
+  });
+  assert.equal(callbackInvocations, 1);
+  assert.deepEqual(client.getPermissionStats(), {
+    requested: 1,
+    approved: 1,
+    denied: 0,
+    cancelled: 0,
+  });
+});
+
+test("AcpClient onPermissionRequest throws fall through to mode-based resolver", async () => {
+  let callbackInvocations = 0;
+  const client = makeClient({
+    permissionMode: "approve-all",
+    onPermissionRequest: async () => {
+      callbackInvocations += 1;
+      throw new Error("UI exploded");
+    },
+  });
+
+  const response = await asInternals(client).handlePermissionRequest?.(
+    makePermissionRequest("session-cb-3", "edit"),
+  );
+
+  assert.deepEqual(response, {
+    outcome: {
+      outcome: "selected",
+      optionId: "allow",
+    },
+  });
+  assert.equal(callbackInvocations, 1);
+});
+
+test("AcpClient onPermissionRequest receives an AbortSignal that fires on session cancel", async () => {
+  let observedSignal: AbortSignal | undefined;
+  const client = makeClient({
+    permissionMode: "approve-all",
+    onPermissionRequest: async (_req, ctx) => {
+      observedSignal = ctx.signal;
+      return { outcome: "allow_once" };
+    },
+  });
+
+  await asInternals(client).handlePermissionRequest?.(
+    makePermissionRequest("session-cb-4", "edit"),
+  );
+
+  assert(observedSignal instanceof AbortSignal);
+  assert.equal(observedSignal?.aborted, false);
+
+  const internals = asInternals(client) as unknown as {
+    abortAndDropPermissionSignal: (sessionId: string) => void;
+  };
+  internals.abortAndDropPermissionSignal("session-cb-4");
+  assert.equal(observedSignal?.aborted, true);
+});
+
+test("AcpClient onPermissionRequest cancels a late decision after session cancel", async () => {
+  let resolveDecision!: (decision: { outcome: "allow_once" }) => void;
+  const decisionPromise = new Promise<{ outcome: "allow_once" }>((resolve) => {
+    resolveDecision = resolve;
+  });
+  let callbackStarted!: () => void;
+  const callbackStartedPromise = new Promise<void>((resolve) => {
+    callbackStarted = resolve;
+  });
+  let observedSignal: AbortSignal | undefined;
+
+  const client = makeClient({
+    permissionMode: "approve-all",
+    onPermissionRequest: async (_req, ctx) => {
+      observedSignal = ctx.signal;
+      callbackStarted();
+      return await decisionPromise;
+    },
+  });
+  const internals = asInternals(client) as ClientInternals & {
+    abortAndDropPermissionSignal: (sessionId: string) => void;
+  };
+
+  const responsePromise = internals.handlePermissionRequest?.(
+    makePermissionRequest("session-cb-5", "edit"),
+  );
+  await callbackStartedPromise;
+
+  internals.cancellingSessionIds.add("session-cb-5");
+  internals.abortAndDropPermissionSignal("session-cb-5");
+  assert.equal(observedSignal?.aborted, true);
+
+  resolveDecision({ outcome: "allow_once" });
+  const response = await responsePromise;
+
+  assert.deepEqual(response, {
+    outcome: {
+      outcome: "cancelled",
+    },
+  });
+  assert.deepEqual(client.getPermissionStats(), {
+    requested: 1,
+    approved: 0,
+    denied: 0,
+    cancelled: 1,
+  });
+});
+
+test("AcpClient onPermissionRequest treats abort rejections as cancelled", async () => {
+  let callbackStarted!: () => void;
+  const callbackStartedPromise = new Promise<void>((resolve) => {
+    callbackStarted = resolve;
+  });
+
+  const client = makeClient({
+    permissionMode: "approve-all",
+    onPermissionRequest: async (_req, ctx) => {
+      callbackStarted();
+      await new Promise<never>((_resolve, reject) => {
+        ctx.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      });
+    },
+  });
+  const internals = asInternals(client) as ClientInternals & {
+    abortAndDropPermissionSignal: (sessionId: string) => void;
+  };
+
+  const responsePromise = internals.handlePermissionRequest?.(
+    makePermissionRequest("session-cb-6", "edit"),
+  );
+  await callbackStartedPromise;
+
+  internals.cancellingSessionIds.add("session-cb-6");
+  internals.abortAndDropPermissionSignal("session-cb-6");
+  const response = await responsePromise;
+
+  assert.deepEqual(response, {
+    outcome: {
+      outcome: "cancelled",
+    },
+  });
+  assert.deepEqual(client.getPermissionStats(), {
+    requested: 1,
+    approved: 0,
+    denied: 0,
+    cancelled: 1,
+  });
+});
+
 test("AcpClient client-method permission errors update permission stats", async () => {
   const client = makeClient();
   const internals = asInternals(client);
