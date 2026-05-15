@@ -87,8 +87,12 @@ I want you to use acpx to run coding agents over the Agent Client Protocol
 1. Install acpx globally (recommended) or use npx:
    npm install -g acpx@latest
 
-2. Install the acpx skill so you have the full reference available:
-   npx acpx@latest --skill install acpx
+2. For Pi or OpenClaw, use the reference URL below. For Codex-style skill
+   installation, install the acpx skill so you have the full reference
+   available:
+   npx acpx@latest --skill install acpx --agent codex --scope user
+   Use --agent claude for Claude Code. For another harness not listed by
+   --skill install --help, use the reference URL below instead.
 
 3. Read the acpx skill reference so you know every command, flag, and
    workflow pattern:

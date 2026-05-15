@@ -27,6 +27,7 @@ Repo: https://github.com/openclaw/acpx
 - Package: keep `npm pack --json` output parseable by running the prepack build quietly.
 - Tooling: document the current Node.js 22.13+ and pnpm 10.33.2 floor.
 - Docs/auth: document the supported `authPolicy` values and ACP credential selection behavior.
+- Docs/skills: make the quick setup skill-install command noninteractive and route unsupported harnesses to the reference URL.
 
 ## 2026.5.5 (v0.7.0)
 
