@@ -30,6 +30,7 @@ import type {
   AcpRuntimeHandle,
   AcpRuntimeOptions,
   AcpRuntimePromptMode,
+  AcpRuntimeSessionModels,
   AcpRuntimeStatus,
   AcpRuntimeTurnAttachment,
   AcpRuntimeTurn,
@@ -245,6 +246,22 @@ function statusSummary(record: SessionRecord): string {
     record.closed ? "closed" : "open",
   ].filter(Boolean);
   return parts.join(" ");
+}
+
+function buildModelsField(record: SessionRecord): { models?: AcpRuntimeSessionModels } {
+  const available = record.acpx?.available_models;
+  const currentModelId = record.acpx?.current_model_id;
+  if (!available || available.length === 0) {
+    return currentModelId === undefined
+      ? {}
+      : { models: { currentModelId, availableModelIds: [] } };
+  }
+  return {
+    models: {
+      ...(currentModelId !== undefined ? { currentModelId } : {}),
+      availableModelIds: [...available],
+    },
+  };
 }
 
 export class AcpRuntimeManager {
@@ -826,6 +843,7 @@ export class AcpRuntimeManager {
       acpxRecordId: record.acpxRecordId,
       backendSessionId: record.acpSessionId,
       agentSessionId: record.agentSessionId,
+      ...buildModelsField(record),
       details: {
         cwd: record.cwd,
         lastUsedAt: record.lastUsedAt,

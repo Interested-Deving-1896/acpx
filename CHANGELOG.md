@@ -9,6 +9,7 @@ Repo: https://github.com/openclaw/acpx
 ### Changes
 
 - Runtime/embedding: `AcpRuntime.ensureSession` now accepts `sessionOptions` (`systemPrompt`, `model`, `allowedTools`, `maxTurns`) for fresh sessions, threading the values into `_meta.systemPrompt` (and `_meta.claudeCode.options.*`) on the underlying `session/new` request and persisting them onto the new record. Reusing an existing persistent record continues to ignore `sessionOptions` since system prompts are fixed at `newSession` time. `SessionAgentOptions` and `SystemPromptOption` are now re-exported from `acpx/runtime`. Thanks @DaniAkash.
+- Runtime/embedding: surface advertised models on `AcpRuntimeStatus.models` so embedders can build model pickers without reaching into private session records. Thanks @DaniAkash.
 
 ### Breaking
 

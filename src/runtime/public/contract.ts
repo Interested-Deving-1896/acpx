@@ -75,11 +75,17 @@ export type AcpRuntimeCapabilities = {
   configOptionKeys?: string[];
 };
 
+export type AcpRuntimeSessionModels = {
+  currentModelId?: string;
+  availableModelIds: string[];
+};
+
 export type AcpRuntimeStatus = {
   summary?: string;
   acpxRecordId?: string;
   backendSessionId?: string;
   agentSessionId?: string;
+  models?: AcpRuntimeSessionModels;
   details?: Record<string, unknown>;
 };
 
