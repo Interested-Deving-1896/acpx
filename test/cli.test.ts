@@ -91,6 +91,21 @@ test("CLI --version prints package version", async () => {
   });
 });
 
+test("config commands accept command-local --format json", async () => {
+  await withTempHome(async (homeDir) => {
+    const show = await runCli(["config", "show", "--format", "json"], homeDir);
+    assert.equal(show.code, 0, show.stderr);
+    const showPayload = JSON.parse(show.stdout.trim()) as Record<string, unknown>;
+    assert.equal(showPayload.defaultAgent, "codex");
+
+    const init = await runCli(["config", "init", "--format", "json"], homeDir);
+    assert.equal(init.code, 0, init.stderr);
+    const initPayload = JSON.parse(init.stdout.trim()) as Record<string, unknown>;
+    assert.equal(initPayload.created, true);
+    assert.equal(typeof initPayload.path, "string");
+  });
+});
+
 function parseSingleAcpErrorLine(stdout: string): ParsedAcpError {
   const payload = JSON.parse(stdout.trim()) as {
     jsonrpc?: string;
