@@ -2112,6 +2112,128 @@ test("integration: json-strict exec retries without emitting stderr notices", as
   });
 });
 
+test("integration: queued prompt honors per-request prompt retries on warm owner", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-integration-cwd-"));
+
+    try {
+      const created = await runCli(
+        [...baseAgentArgs(cwd), "--format", "json", "sessions", "new"],
+        homeDir,
+      );
+      assert.equal(created.code, 0, created.stderr);
+
+      const warmup = await runCli(
+        [
+          ...baseAgentArgs(cwd),
+          "--format",
+          "quiet",
+          "--ttl",
+          "3600",
+          "prompt",
+          "say exactly: warm-owner-no-retries",
+        ],
+        homeDir,
+      );
+      assert.equal(warmup.code, 0, warmup.stderr);
+      assert.match(warmup.stdout, /warm-owner-no-retries/);
+
+      const retryingPrompt = await runCli(
+        [
+          ...baseAgentArgs(cwd),
+          "--format",
+          "json",
+          "--json-strict",
+          "--prompt-retries",
+          "1",
+          "prompt",
+          "retryable-error-once",
+        ],
+        homeDir,
+      );
+      assert.equal(retryingPrompt.code, 0, retryingPrompt.stderr);
+      assert.equal(retryingPrompt.stderr.trim(), "");
+
+      const payloads = parseJsonRpcOutputLines(retryingPrompt.stdout);
+      const promptRequests = payloads.filter((payload) => payload.method === "session/prompt");
+      assert.equal(promptRequests.length, 2, retryingPrompt.stdout);
+      assert.equal(
+        payloads.some(
+          (payload) => extractAgentMessageChunkText(payload) === "recovered after retry",
+        ),
+        true,
+        retryingPrompt.stdout,
+      );
+    } finally {
+      await runCli([...baseAgentArgs(cwd), "--format", "json", "sessions", "close"], homeDir).catch(
+        () => {},
+      );
+      await fs.rm(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
+test("integration: queued prompt without retry flag ignores warm owner startup retries", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-integration-cwd-"));
+
+    try {
+      const created = await runCli(
+        [...baseAgentArgs(cwd), "--format", "json", "sessions", "new"],
+        homeDir,
+      );
+      assert.equal(created.code, 0, created.stderr);
+
+      const warmup = await runCli(
+        [
+          ...baseAgentArgs(cwd),
+          "--format",
+          "quiet",
+          "--ttl",
+          "3600",
+          "--prompt-retries",
+          "1",
+          "prompt",
+          "say exactly: warm-owner-with-retries",
+        ],
+        homeDir,
+      );
+      assert.equal(warmup.code, 0, warmup.stderr);
+      assert.match(warmup.stdout, /warm-owner-with-retries/);
+
+      const noRetryPrompt = await runCli(
+        [
+          ...baseAgentArgs(cwd),
+          "--format",
+          "json",
+          "--json-strict",
+          "prompt",
+          "retryable-error-once",
+        ],
+        homeDir,
+      );
+      assert.equal(noRetryPrompt.code, 1, noRetryPrompt.stderr);
+      assert.equal(noRetryPrompt.stderr.trim(), "");
+
+      const payloads = parseJsonRpcOutputLines(noRetryPrompt.stdout);
+      const promptRequests = payloads.filter((payload) => payload.method === "session/prompt");
+      assert.equal(promptRequests.length, 1, noRetryPrompt.stdout);
+      assert.equal(
+        payloads.some(
+          (payload) => extractAgentMessageChunkText(payload) === "recovered after retry",
+        ),
+        false,
+        noRetryPrompt.stdout,
+      );
+    } finally {
+      await runCli([...baseAgentArgs(cwd), "--format", "json", "sessions", "close"], homeDir).catch(
+        () => {},
+      );
+      await fs.rm(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
 test("integration: fs/read_text_file through mock agent", async () => {
   await withTempHome(async (homeDir) => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-integration-cwd-"));

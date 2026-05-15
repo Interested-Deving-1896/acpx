@@ -32,6 +32,7 @@ export type QueueSubmitRequest = {
   nonInteractivePermissions?: NonInteractivePermissionPolicy;
   timeoutMs?: number;
   suppressSdkConsoleErrors?: boolean;
+  promptRetries?: number;
   waitForCompletion: boolean;
   sessionOptions?: QueueSessionOptions;
 };
@@ -247,6 +248,16 @@ function parseOwnerGeneration(value: unknown): number | undefined | null {
   return value;
 }
 
+function parseNonNegativeInteger(value: unknown): number | undefined | null {
+  if (value == null) {
+    return undefined;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return Math.round(value);
+}
+
 export function parseQueueRequest(raw: unknown): QueueRequest | null {
   const request = asRecord(raw);
   if (!request) {
@@ -286,6 +297,7 @@ export function parseQueueRequest(raw: unknown): QueueRequest | null {
         : typeof request.suppressSdkConsoleErrors === "boolean"
           ? request.suppressSdkConsoleErrors
           : null;
+    const promptRetries = parseNonNegativeInteger(request.promptRetries);
     const sessionOptions = parseSessionOptions(request.sessionOptions);
 
     const prompt =
@@ -297,6 +309,7 @@ export function parseQueueRequest(raw: unknown): QueueRequest | null {
       prompt === null ||
       nonInteractivePermissions === null ||
       suppressSdkConsoleErrors === null ||
+      promptRetries === null ||
       sessionOptions === null ||
       typeof request.waitForCompletion !== "boolean"
     ) {
@@ -314,6 +327,7 @@ export function parseQueueRequest(raw: unknown): QueueRequest | null {
       nonInteractivePermissions,
       timeoutMs,
       ...(suppressSdkConsoleErrors !== undefined ? { suppressSdkConsoleErrors } : {}),
+      ...(promptRetries !== undefined ? { promptRetries } : {}),
       waitForCompletion: request.waitForCompletion,
       ...(sessionOptions !== undefined ? { sessionOptions } : {}),
     };

@@ -270,6 +270,7 @@ export type SubmitToQueueOwnerOptions = {
   errorEmissionPolicy?: OutputErrorEmissionPolicy;
   timeoutMs?: number;
   suppressSdkConsoleErrors?: boolean;
+  promptRetries?: number;
   waitForCompletion: boolean;
   verbose?: boolean;
   sessionOptions?: NonNullable<AcpClientOptions["sessionOptions"]>;
@@ -291,6 +292,7 @@ async function submitToQueueOwner(
     nonInteractivePermissions: options.nonInteractivePermissions,
     timeoutMs: options.timeoutMs,
     suppressSdkConsoleErrors: options.suppressSdkConsoleErrors,
+    promptRetries: options.promptRetries ?? 0,
     waitForCompletion: options.waitForCompletion,
     sessionOptions: options.sessionOptions,
   };

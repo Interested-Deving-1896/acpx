@@ -84,6 +84,7 @@ export type QueueTask = {
   nonInteractivePermissions?: NonInteractivePermissionPolicy;
   timeoutMs?: number;
   suppressSdkConsoleErrors?: boolean;
+  promptRetries?: number;
   sessionOptions?: NonNullable<AcpClientOptions["sessionOptions"]>;
   waitForCompletion: boolean;
   enqueuedAt: number;
@@ -467,6 +468,7 @@ export class SessionQueueOwner {
         nonInteractivePermissions: request.nonInteractivePermissions,
         timeoutMs: request.timeoutMs,
         suppressSdkConsoleErrors: request.suppressSdkConsoleErrors,
+        promptRetries: request.promptRetries,
         sessionOptions: request.sessionOptions,
         waitForCompletion: request.waitForCompletion,
         enqueuedAt: Date.now(),

@@ -30,6 +30,7 @@ Repo: https://github.com/openclaw/acpx
 - Tooling/docs: document npm-based pnpm bootstrap for clean Node 22.13 setups with stale Corepack signing keys.
 - Docs/auth: document the supported `authPolicy` values and ACP credential selection behavior.
 - Docs/skills: make the quick setup skill-install command noninteractive and route unsupported harnesses to the reference URL.
+- CLI/queue: honor per-request `--prompt-retries` when sending a prompt to an already-warm persistent queue owner.
 
 ## 2026.5.5 (v0.7.0)
 

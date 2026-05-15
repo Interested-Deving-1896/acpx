@@ -312,7 +312,7 @@ export async function runQueuedTask(
       timeoutMs: task.timeoutMs,
       suppressSdkConsoleErrors: task.suppressSdkConsoleErrors ?? options.suppressSdkConsoleErrors,
       verbose: options.verbose,
-      promptRetries: options.promptRetries,
+      promptRetries: task.promptRetries ?? options.promptRetries ?? 0,
       sessionOptions: mergeSessionOptions(task.sessionOptions, options.sessionOptions),
       onClientAvailable: options.onClientAvailable,
       onClientClosed: options.onClientClosed,
