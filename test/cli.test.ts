@@ -91,6 +91,36 @@ test("CLI --version prints package version", async () => {
   });
 });
 
+test("CLI --version prints package version with top-level output flags", async () => {
+  await withTempHome(async (homeDir) => {
+    const before = await runCli(["--format", "quiet", "--version"], homeDir);
+    assert.equal(before.code, 0, before.stderr);
+    assert.equal(before.stderr.trim(), "");
+    assert.equal(before.stdout.trim(), PACKAGE_VERSION);
+
+    const after = await runCli(["--json-strict", "--version"], homeDir);
+    assert.equal(after.code, 0, after.stderr);
+    assert.equal(after.stderr.trim(), "");
+    assert.equal(after.stdout.trim(), PACKAGE_VERSION);
+  });
+});
+
+test("exec treats --version after end-of-options as prompt text", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = path.join(homeDir, "workspace");
+    await fs.mkdir(cwd, { recursive: true });
+
+    const result = await runCli(
+      ["--agent", MOCK_AGENT_COMMAND, "--cwd", cwd, "--format", "quiet", "exec", "--", "--version"],
+      homeDir,
+    );
+
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /unrecognized prompt: --version/);
+    assert.notEqual(result.stdout.trim(), PACKAGE_VERSION);
+  });
+});
+
 test("config commands accept command-local --format json", async () => {
   await withTempHome(async (homeDir) => {
     const show = await runCli(["config", "show", "--format", "json"], homeDir);

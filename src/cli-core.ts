@@ -44,6 +44,36 @@ const TOP_LEVEL_VERBS = new Set([
   "help",
 ]);
 
+const TOP_LEVEL_VERSION_VALUE_FLAG_VALUES = [
+  "--agent",
+  "--cwd",
+  "--auth-policy",
+  "--non-interactive-permissions",
+  "--permission-policy",
+  "--policy",
+  "--format",
+  "--model",
+  "--allowed-tools",
+  "--max-turns",
+  "--system-prompt",
+  "--append-system-prompt",
+  "--prompt-retries",
+  "--timeout",
+  "--ttl",
+] as const;
+
+const TOP_LEVEL_VERSION_VALUE_FLAGS = new Set<string>(TOP_LEVEL_VERSION_VALUE_FLAG_VALUES);
+
+const TOP_LEVEL_VERSION_BOOLEAN_FLAGS = new Set([
+  "--approve-all",
+  "--approve-reads",
+  "--deny-all",
+  "--suppress-reads",
+  "--json-strict",
+  "--no-terminal",
+  "--verbose",
+]);
+
 let skillflagModulePromise: Promise<SkillflagModule> | undefined;
 
 function loadSkillflagModule(): Promise<SkillflagModule> {
@@ -215,6 +245,40 @@ function detectJsonStrict(argv: string[]): boolean {
   return false;
 }
 
+function isTopLevelVersionRequest(argv: string[]): boolean {
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+
+    if (token === "--") {
+      return false;
+    }
+
+    if (token === "--version" || token === "-V") {
+      return true;
+    }
+
+    if (!token.startsWith("-") || token === "-") {
+      return false;
+    }
+
+    if (TOP_LEVEL_VERSION_VALUE_FLAGS.has(token)) {
+      index += 1;
+      continue;
+    }
+
+    if (
+      TOP_LEVEL_VERSION_VALUE_FLAG_VALUES.some((flag) => token.startsWith(`${flag}=`)) ||
+      TOP_LEVEL_VERSION_BOOLEAN_FLAGS.has(token)
+    ) {
+      continue;
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
 async function emitJsonErrorEvent(error: NormalizedOutputError): Promise<void> {
   const formatter = createOutputFormatter("json", {
     jsonContext: {
@@ -265,12 +329,14 @@ async function runWithOutputPolicy<T>(
 }
 
 export async function main(argv: string[] = process.argv): Promise<void> {
+  const rawArgs = argv.slice(2);
+
   installPerfMetricsCapture({
-    argv: argv.slice(2),
+    argv: rawArgs,
     role: argv[2] === "__queue-owner" ? "queue_owner" : "cli",
   });
 
-  if (argv.includes("--version") || argv.includes("-V")) {
+  if (isTopLevelVersionRequest(rawArgs)) {
     process.stdout.write(`${getAcpxVersion()}\n`);
     return;
   }
@@ -294,7 +360,6 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     });
   }
 
-  const rawArgs = argv.slice(2);
   const config = await loadResolvedConfig(detectInitialCwd(rawArgs));
   const requestedJsonStrict = detectJsonStrict(rawArgs);
   const requestedOutputFormat = detectRequestedOutputFormat(rawArgs, config.format);
