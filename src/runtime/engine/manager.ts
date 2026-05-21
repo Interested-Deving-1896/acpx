@@ -356,6 +356,19 @@ async function createOrLoadRuntimeSession(
   cwd: string,
 ): Promise<CreatedRuntimeSession> {
   if (resumeSessionId) {
+    if (client.supportsResumeSession()) {
+      const resumed = await client.resumeSession(resumeSessionId, cwd);
+      return {
+        sessionId: resumeSessionId,
+        agentSessionId: resumed.agentSessionId,
+        sessionResult: resumed,
+      };
+    }
+    if (!client.supportsLoadSession()) {
+      throw new Error(
+        `Agent does not support session/resume or session/load; cannot resume session ${resumeSessionId}`,
+      );
+    }
     const loaded = await client.loadSession(resumeSessionId, cwd);
     return {
       sessionId: resumeSessionId,
@@ -993,7 +1006,7 @@ export class AcpRuntimeManager {
     }
     this.emitRuntimeTurnEvent(task, {
       type: "status",
-      text: loadError ? `load fallback: ${loadError}` : "session resumed",
+      text: loadError ? `session reconnect fallback: ${loadError}` : "session resumed",
     });
   }
 

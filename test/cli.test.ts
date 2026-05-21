@@ -435,7 +435,7 @@ test("sessions new --resume-session loads ACP session and stores resumed ids", a
   });
 });
 
-test("sessions new --resume-session fails when agent does not support session/load", async () => {
+test("sessions new --resume-session fails when agent does not support session reuse", async () => {
   await withTempHome(async (homeDir) => {
     const cwd = path.join(homeDir, "workspace");
     await fs.mkdir(cwd, { recursive: true });
@@ -462,7 +462,7 @@ test("sessions new --resume-session fails when agent does not support session/lo
     );
 
     assert.equal(result.code, 1, result.stderr);
-    assert.match(result.stderr, /does not support session\/load/i);
+    assert.match(result.stderr, /does not support session\/resume or session\/load/i);
   });
 });
 

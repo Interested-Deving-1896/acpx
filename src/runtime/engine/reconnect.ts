@@ -335,13 +335,13 @@ function logReconnectAttempt(
   }
   if (storedProcessAlive) {
     process.stderr.write(
-      `[acpx] saved session pid ${record.pid} is running; reconnecting with loadSession\n`,
+      `[acpx] saved session pid ${record.pid} is running; reconnecting to saved ACP session\n`,
     );
     return;
   }
   if (shouldReconnect) {
     process.stderr.write(
-      `[acpx] saved session pid ${record.pid} is dead; respawning agent and attempting session/load\n`,
+      `[acpx] saved session pid ${record.pid} is dead; respawning agent and attempting session reconnect\n`,
     );
   }
 }
@@ -434,6 +434,10 @@ async function loadOrCreateRuntimeSession(params: {
     };
   }
 
+  if (params.client.supportsResumeSession()) {
+    return await resumeRuntimeSession(params);
+  }
+
   if (params.client.supportsLoadSession()) {
     return await loadRuntimeSession(params);
   }
@@ -441,11 +445,36 @@ async function loadOrCreateRuntimeSession(params: {
   if (params.sameSessionOnly) {
     throw makeSessionResumeRequiredError({
       record: params.record,
-      reason: "agent does not support session/load",
+      reason: "agent does not support session/resume or session/load",
     });
   }
 
   return await createFreshRuntimeSession(params.client, params.record, params.timeoutMs);
+}
+
+async function resumeRuntimeSession(params: {
+  client: AcpClient;
+  record: SessionRecord;
+  sameSessionOnly: boolean;
+  timeoutMs?: number;
+}): Promise<RuntimeSessionLoadState> {
+  try {
+    const resumeResult = await withTimeout(
+      params.client.resumeSession(params.record.acpSessionId, params.record.cwd),
+      params.timeoutMs,
+    );
+    reconcileAgentSessionId(params.record, resumeResult.agentSessionId);
+    applyConfigOptionsToRecord(params.record, resumeResult);
+    return {
+      sessionId: params.record.acpSessionId,
+      pendingAgentSessionId: params.record.agentSessionId,
+      sessionModels: resumeResult.models,
+      resumed: true,
+      createdFreshSession: false,
+    };
+  } catch (error) {
+    return await recoverRuntimeSessionLoadFailure(params, error);
+  }
 }
 
 async function loadRuntimeSession(params: {
