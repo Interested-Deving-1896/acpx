@@ -197,6 +197,10 @@ Harness documentation synchronization policy:
 - Do not prefix pull request titles with agent markers such as `[codex]` or
   other AI-assistance tags. If AI assistance should be disclosed, put that in
   the PR description instead.
+- For non-trivial local code changes, run
+  `.agents/skills/autoreview/scripts/autoreview` until no accepted/actionable
+  findings remain before final handoff or merge. Use commit mode for already
+  landed main commits and branch mode for branch or PR work.
 - Local `codex review --base ...` runs in this repo can legitimately take up to
   30 minutes. Do not declare them stuck before that timeout unless you have
   stronger evidence than elapsed time alone.
