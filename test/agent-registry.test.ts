@@ -79,13 +79,13 @@ test("default agent is codex", () => {
 });
 
 test("claude built-in uses the current ACP adapter package range", () => {
-  assert.equal(BUILT_IN_AGENT_PACKAGES.claude.packageRange, "^0.31.0");
-  assert.equal(AGENT_REGISTRY.claude, "npx -y @agentclientprotocol/claude-agent-acp@^0.31.0");
+  assert.equal(BUILT_IN_AGENT_PACKAGES.claude.packageRange, "^0.36.1");
+  assert.equal(AGENT_REGISTRY.claude, "npx -y @agentclientprotocol/claude-agent-acp@^0.36.1");
 });
 
 test("npm-backed built-ins use current adapter package ranges", () => {
-  assert.equal(BUILT_IN_AGENT_PACKAGES.codex.packageRange, "^0.12.0");
-  assert.equal(AGENT_REGISTRY.codex, "npx @zed-industries/codex-acp@^0.12.0");
+  assert.equal(BUILT_IN_AGENT_PACKAGES.codex.packageRange, "^0.0.44");
+  assert.equal(AGENT_REGISTRY.codex, "npx -y @agentclientprotocol/codex-acp@^0.0.44");
   assert.equal(AGENT_REGISTRY.pi, "npx pi-acp@^0.0.26");
 });
 
@@ -107,7 +107,7 @@ test("resolveInstalledBuiltInAgentLaunch uses a locally installed adapter when a
     path.join(packageRoot, "package.json"),
     JSON.stringify({
       name: BUILT_IN_AGENT_PACKAGES.claude.packageName,
-      version: "0.31.0",
+      version: "0.36.1",
       bin: {
         "claude-agent-acp": "bin/claude-agent-acp.js",
       },
@@ -126,7 +126,7 @@ test("resolveInstalledBuiltInAgentLaunch uses a locally installed adapter when a
     args: [path.join(packageRoot, "bin", "claude-agent-acp.js")],
     packageName: BUILT_IN_AGENT_PACKAGES.claude.packageName,
     packageRange: BUILT_IN_AGENT_PACKAGES.claude.packageRange,
-    packageVersion: "0.31.0",
+    packageVersion: "0.36.1",
     binPath: path.join(packageRoot, "bin", "claude-agent-acp.js"),
   });
 });
