@@ -12,6 +12,16 @@ Repo: https://github.com/openclaw/acpx
 
 ### Fixes
 
+## 2026.5.23 (v0.10.0)
+
+### Changes
+
+- CLI/sessions: add `sessions export` and `sessions import` for moving portable session archives between machines. Thanks @mvanhorn.
+
+### Breaking
+
+### Fixes
+
 ## 2026.5.22 (v0.9.0)
 
 ### Changes
@@ -21,7 +31,6 @@ Repo: https://github.com/openclaw/acpx
 - Agents/built-ins: switch the default Codex adapter to `@agentclientprotocol/codex-acp`, with Codex model selection handled through advertised ACP model ids, and bump the default Claude ACP adapter range.
 - Tooling: add a repo-local autoreview skill and helper for Codex-first
   closeout review with acpx checks in parallel.
-- CLI/sessions: add `sessions export` and `sessions import` for moving portable session archives between machines. Thanks @mvanhorn.
 
 ### Breaking
 
