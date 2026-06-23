@@ -129,6 +129,7 @@ function assignQueueOwnerSessionOptions(
   assignSessionAllowedTools(options.sessionOptions, sessionOpts.allowedTools);
   assignSessionMaxTurns(options.sessionOptions, sessionOpts.maxTurns);
   assignSessionSystemPrompt(options.sessionOptions, sessionOpts.systemPrompt);
+  assignSessionEnv(options.sessionOptions, sessionOpts.env);
 }
 
 function assignSessionModel(
@@ -170,6 +171,22 @@ function assignSessionSystemPrompt(
   const systemPrompt = asRecord(value);
   if (typeof systemPrompt?.append === "string") {
     options.systemPrompt = { append: systemPrompt.append };
+  }
+}
+
+function assignSessionEnv(
+  options: NonNullable<QueueOwnerRuntimeOptions["sessionOptions"]>,
+  value: unknown,
+): void {
+  const env = asRecord(value);
+  if (!env) {
+    return;
+  }
+  const entries = Object.entries(env).filter(
+    (entry): entry is [string, string] => typeof entry[1] === "string",
+  );
+  if (entries.length > 0) {
+    options.env = Object.fromEntries(entries);
   }
 }
 

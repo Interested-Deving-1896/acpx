@@ -584,6 +584,7 @@ function cloneSessionOptions(
     ...(options.system_prompt !== undefined
       ? { system_prompt: cloneSystemPromptOption(options.system_prompt) }
       : {}),
+    ...(options.env !== undefined ? { env: { ...options.env } } : {}),
   };
 }
 

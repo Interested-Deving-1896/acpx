@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +14,96 @@ import {
   buildTerminalSpawnCommand,
 } from "../src/spawn-command-options.js";
 
+function withPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
+  const descriptor = Object.getOwnPropertyDescriptor(process, "platform");
+  Object.defineProperty(process, "platform", { value: platform });
+  try {
+    return callback();
+  } finally {
+    if (descriptor) {
+      Object.defineProperty(process, "platform", descriptor);
+    }
+  }
+}
+
+test("buildAgentSpawnOptions merges session env into the agent child environment", () => {
+  const previous = process.env.ACPX_TEST_SESSION_ENV_PARENT;
+  process.env.ACPX_TEST_SESSION_ENV_PARENT = "parent-value";
+  try {
+    const options = buildAgentSpawnOptions("/tmp/acpx-agent", undefined, {
+      ACPX_TEST_SESSION_ENV_INJECTED: "injected-value",
+      ACPX_TEST_SESSION_ENV_PARENT: "overridden-by-session",
+    });
+
+    assert.equal(options.env.ACPX_TEST_SESSION_ENV_INJECTED, "injected-value");
+    assert.equal(
+      options.env.ACPX_TEST_SESSION_ENV_PARENT,
+      "overridden-by-session",
+      "session env must override the parent process env for colliding keys",
+    );
+  } finally {
+    if (previous == null) {
+      delete process.env.ACPX_TEST_SESSION_ENV_PARENT;
+    } else {
+      process.env.ACPX_TEST_SESSION_ENV_PARENT = previous;
+    }
+  }
+});
+
+test("buildAgentSpawnOptions leaves the agent env untouched when no session env is configured", () => {
+  const options = buildAgentSpawnOptions("/tmp/acpx-agent", undefined, undefined);
+  assert.equal(options.env.ACPX_TEST_SESSION_ENV_INJECTED, undefined);
+});
+
+test("spawned agent child process receives session env with parent-override precedence", async () => {
+  const script =
+    "process.stdout.write(JSON.stringify({injected:process.env.ACPX_TEST_E2E_INJECTED,parent:process.env.ACPX_TEST_E2E_PARENT}))";
+  const options = buildAgentSpawnOptions(os.tmpdir(), undefined, {
+    ACPX_TEST_E2E_INJECTED: "e2e-injected",
+    ACPX_TEST_E2E_PARENT: "e2e-overridden",
+  });
+
+  const result = await new Promise<{ injected?: string; parent?: string }>((resolve, reject) => {
+    const child = spawn(process.execPath, ["-e", script], {
+      ...options,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(`child exited with ${code}: ${stderr}`));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(new Error(`failed to parse child stdout: ${stdout} (${stderr})`));
+      }
+    });
+  });
+
+  assert.equal(
+    result.injected,
+    "e2e-injected",
+    "real child process must receive the injected session env var",
+  );
+  assert.equal(
+    result.parent,
+    "e2e-overridden",
+    "real child process must see session env override the parent value",
+  );
+});
+
 test("buildAgentSpawnOptions hides Windows console windows and preserves auth env", () => {
   const options = buildAgentSpawnOptions("/tmp/acpx-agent", {
     ACPX_AUTH_TOKEN: "secret-token",
@@ -22,6 +113,86 @@ test("buildAgentSpawnOptions hides Windows console windows and preserves auth en
   assert.deepEqual(options.stdio, ["pipe", "pipe", "pipe"]);
   assert.equal(options.windowsHide, true);
   assert.equal(options.env.ACPX_AUTH_TOKEN, "secret-token");
+});
+
+test("buildAgentSpawnOptions prevents session env from overriding injected auth env", () => {
+  const options = buildAgentSpawnOptions(
+    "/tmp/acpx-agent",
+    {
+      "api-token": "secret-token",
+    },
+    {
+      ACPX_AUTH_API_TOKEN: "session-prefixed",
+      API_TOKEN: "session-normalized",
+    },
+  );
+
+  assert.equal(options.env.ACPX_AUTH_API_TOKEN, "secret-token");
+  assert.equal(options.env.API_TOKEN, "secret-token");
+});
+
+test("buildAgentSpawnOptions protects auth env case-insensitively on Windows", () => {
+  return withPlatform("win32", () => {
+    const options = buildAgentSpawnOptions(
+      "/tmp/acpx-agent",
+      {
+        "case-token": "secret-token",
+      },
+      {
+        acpx_auth_case_token: "session-prefixed",
+        case_token: "session-normalized",
+      },
+    );
+
+    assert.equal(options.env.ACPX_AUTH_CASE_TOKEN, "secret-token");
+    assert.equal(options.env.CASE_TOKEN, "secret-token");
+    assert.equal(options.env.acpx_auth_case_token, undefined);
+    assert.equal(options.env.case_token, undefined);
+  });
+});
+
+test("buildAgentSpawnOptions protects inherited auth env case-insensitively on Windows", () => {
+  return withPlatform("win32", () => {
+    const previous = process.env.acpx_auth_inherited_token;
+    process.env.acpx_auth_inherited_token = "inherited-secret";
+    try {
+      const options = buildAgentSpawnOptions("/tmp/acpx-agent", undefined, {
+        ACPX_AUTH_INHERITED_TOKEN: "session-prefixed",
+        INHERITED_TOKEN: "session-normalized",
+      });
+
+      assert.equal(options.env.acpx_auth_inherited_token, "inherited-secret");
+      assert.equal(options.env.INHERITED_TOKEN, "inherited-secret");
+      assert.equal(options.env.ACPX_AUTH_INHERITED_TOKEN, undefined);
+    } finally {
+      if (previous == null) {
+        delete process.env.acpx_auth_inherited_token;
+      } else {
+        process.env.acpx_auth_inherited_token = previous;
+      }
+    }
+  });
+});
+
+test("buildAgentSpawnOptions replaces inherited env case collisions on Windows", () => {
+  return withPlatform("win32", () => {
+    const previous = process.env.ACPX_TEST_SESSION_ENV_CASE;
+    process.env.ACPX_TEST_SESSION_ENV_CASE = "inherited";
+    try {
+      const options = buildAgentSpawnOptions("/tmp/acpx-agent", undefined, {
+        acpx_test_session_env_case: "session",
+      });
+
+      assert.equal(options.env.ACPX_TEST_SESSION_ENV_CASE, undefined);
+      assert.equal(options.env.acpx_test_session_env_case, "session");
+    } finally {
+      if (previous == null) {
+        delete process.env.ACPX_TEST_SESSION_ENV_CASE;
+      } else {
+        process.env.ACPX_TEST_SESSION_ENV_CASE = previous;
+      }
+    }
+  });
 });
 
 test("buildAgentSpawnOptions promotes explicit ACPX auth env vars into agent auth env", () => {

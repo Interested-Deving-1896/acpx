@@ -33,6 +33,9 @@ describe("parseQueueOwnerPayload", () => {
           allowedTools: ["Read"],
           maxTurns: 3,
           systemPrompt: "stay concise",
+          env: {
+            GIT_AUTHOR_EMAIL: "agent@example.local",
+          },
         },
       }),
     );
@@ -63,6 +66,9 @@ describe("parseQueueOwnerPayload", () => {
       allowedTools: ["Read"],
       maxTurns: 3,
       systemPrompt: "stay concise",
+      env: {
+        GIT_AUTHOR_EMAIL: "agent@example.local",
+      },
     });
   });
 
