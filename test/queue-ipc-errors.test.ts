@@ -750,3 +750,81 @@ test("trySubmitToRunningOwner clears stale owner lock on protocol mismatch", asy
     }
   });
 });
+
+test("trySubmitToRunningOwner rejects MCP config changes for a live owner", async () => {
+  await withTempHome(async (homeDir) => {
+    const sessionId = "submit-mcp-config-owner-mismatch";
+    const keeper = await startKeeperProcess();
+    const { lockPath, socketPath } = queuePaths(homeDir, sessionId);
+    await writeQueueOwnerLock({
+      lockPath,
+      pid: keeper.pid,
+      sessionId,
+      socketPath,
+      mcpConfigPath: "/tmp/job-mcp.json",
+      mcpConfigFingerprint: "fingerprint-v1",
+    });
+
+    try {
+      await assert.rejects(
+        async () =>
+          await trySubmitToRunningOwner({
+            sessionId,
+            message: "hello",
+            mcpConfigPath: "/tmp/job-mcp.json",
+            mcpConfigFingerprint: "fingerprint-v2",
+            permissionMode: "approve-reads",
+            outputFormatter: NOOP_OUTPUT_FORMATTER,
+            waitForCompletion: true,
+          }),
+        (error: unknown) => {
+          assert(error instanceof QueueConnectionError);
+          assert.equal(error.detailCode, "QUEUE_MCP_CONFIG_CONFLICT");
+          assert.equal(error.retryable, false);
+          return true;
+        },
+      );
+      await fs.access(lockPath);
+      assert.equal(keeper.exitCode, null);
+      assert.equal(keeper.signalCode, null);
+    } finally {
+      await cleanupOwnerArtifacts({ socketPath, lockPath });
+      stopProcess(keeper);
+    }
+  });
+});
+
+test("trySubmitToRunningOwner recovers stale owners before MCP conflict checks", async () => {
+  await withTempHome(async (homeDir) => {
+    const sessionId = "submit-stale-mcp-config-owner";
+    const keeper = await startKeeperProcess();
+    const { lockPath, socketPath } = queuePaths(homeDir, sessionId);
+    await writeQueueOwnerLock({
+      lockPath,
+      pid: keeper.pid,
+      sessionId,
+      socketPath,
+      mcpConfigPath: "/tmp/old-mcp.json",
+      mcpConfigFingerprint: "fingerprint-v1",
+      heartbeatAt: "2000-01-01T00:00:00.000Z",
+    });
+
+    try {
+      const outcome = await trySubmitToRunningOwner({
+        sessionId,
+        message: "hello",
+        mcpConfigPath: "/tmp/new-mcp.json",
+        mcpConfigFingerprint: "fingerprint-v2",
+        permissionMode: "approve-reads",
+        outputFormatter: NOOP_OUTPUT_FORMATTER,
+        waitForCompletion: true,
+      });
+      assert.equal(outcome, undefined);
+      await assert.rejects(fs.access(lockPath));
+      assert.equal(keeper.exitCode == null && keeper.signalCode == null, false);
+    } finally {
+      await cleanupOwnerArtifacts({ socketPath, lockPath });
+      stopProcess(keeper);
+    }
+  });
+});
