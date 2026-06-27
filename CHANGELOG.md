@@ -4,6 +4,17 @@
 
 Repo: https://github.com/openclaw/acpx
 
+## 2026.6.23 (v0.11.2)
+
+### Changes
+
+### Breaking
+
+### Fixes
+
+- Runtime/status: persist token usage reported on successful prompt responses,
+  including adapters that only provide a sparse `usage_update`.
+
 ## Unreleased
 
 ### Changes
