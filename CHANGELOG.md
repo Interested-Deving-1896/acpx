@@ -4,17 +4,26 @@
 
 Repo: https://github.com/openclaw/acpx
 
-## Unreleased
+## 2026.7.27 (v0.13.0)
+
+### Highlights
+
+- Windows agent launches now use structured argv end to end. Unambiguous legacy `command` plus `args` entries migrate automatically; ambiguous/raw commands and `.sh` wrappers must move to `agents.<name>.argv`, and existing saved custom-agent sessions without argv must be recreated.
+- Built-in Pool and ZeroClaw support makes both native ACP stdio servers available without custom registry configuration.
+- The new `--no-fs` flag lets compatible agents use their native filesystem implementation instead of ACP client filesystem methods.
+- The dependency and pnpm refresh resolves all four known PostCSS, fast-uri, js-yaml, and brace-expansion advisories.
 
 ### Changes
 
-- Dependencies/tooling: refresh the ACP SDK, runtime and development toolchain, update pnpm to 10.34.5, and resolve the PostCSS, fast-uri, js-yaml, and brace-expansion advisories.
+- Agents/built-ins: add Pool via `pool acp`. Thanks @dan-roberts-poolside and @osolmaz.
+
+- Agents/built-ins: add ZeroClaw via `zeroclaw acp`, ZeroClaw's native ACP v1 stdio server. Thanks @JordanTheJet.
 
 - CLI/ACP: add `--no-fs` to disable advertised ACP file read/write capabilities so compatible agents can use their native filesystem implementation. Thanks @zgxkbtl.
 
 - CLI/timers: preserve tiny positive timeout and TTL values from flags or config as 1 ms instead of disabling timers, and reject delays beyond Node's supported timer range. Thanks @realmehmetali.
 
-- Agents/built-ins: add ZeroClaw via `zeroclaw acp`, ZeroClaw's native ACP v1 stdio server. Thanks @JordanTheJet.
+- Dependencies/tooling: refresh the ACP SDK, runtime and development toolchain, update pnpm to 10.34.5, and resolve the PostCSS, fast-uri, js-yaml, and brace-expansion advisories.
 
 ### Breaking
 

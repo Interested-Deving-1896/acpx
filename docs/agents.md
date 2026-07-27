@@ -200,7 +200,7 @@ Configure at least one model provider before prompting (for example `ANTHROPIC_A
 - Default command: `pool acp`
 - Upstream: [Poolside](https://poolside.ai)
 
-`acpx pool` uses the installed `pool` CLI ACP server (`pool acp`). Install `pool` and complete its authentication flow with `pool login` before using it through `acpx`; credentials are stored under `~/.config/poolside/`.
+`acpx pool` uses the installed `pool` CLI ACP server (`pool acp`). Install and authenticate the CLI first; `pool login` is the normal interactive path. Focused setup notes live in `agents/Pool.md`.
 
 ### Qwen
 
