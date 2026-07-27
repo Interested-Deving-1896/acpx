@@ -57,6 +57,7 @@ export const AGENT_REGISTRY: Record<string, string> = {
   qoder: "qodercli --acp",
   qwen: "qwen --acp",
   trae: "traecli acp serve",
+  zeroclaw: "zeroclaw acp",
 };
 
 export const AGENT_ARGV_REGISTRY: Record<string, string[]> = {
@@ -84,6 +85,7 @@ export const AGENT_ARGV_REGISTRY: Record<string, string[]> = {
   qoder: ["qodercli", "--acp"],
   qwen: ["qwen", "--acp"],
   trae: ["traecli", "acp", "serve"],
+  zeroclaw: ["zeroclaw", "acp"],
 };
 
 export const BUILT_IN_AGENT_PACKAGES = {
