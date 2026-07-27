@@ -15,6 +15,7 @@ import {
   parseMaxTurns,
   parseTtlSeconds,
 } from "../src/cli.js";
+import { classifySessionConnectionStatus } from "../src/cli/output/render.js";
 import { serializeSessionRecordForDisk } from "../src/session/persistence.js";
 import type { SessionRecord } from "../src/types.js";
 import {
@@ -235,9 +236,31 @@ test("formatPromptSessionBannerLine prints single-line prompt banner for matchin
   });
 
   const line = formatPromptSessionBannerLine(record, "/home/user/project");
+  assert.equal(line, "[acpx] session calm-forest (abc123) · /home/user/project · agent starting");
+});
+
+test("formatPromptSessionBannerLine reports a live queue owner as connected", () => {
+  const record = makeSessionRecord({
+    acpxRecordId: "abc123",
+    acpSessionId: "abc123",
+    agentCommand: "agent-a",
+    cwd: "/home/user/project",
+    name: "calm-forest",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastUsedAt: "2026-01-01T00:00:00.000Z",
+    closed: false,
+  });
+
+  const line = formatPromptSessionBannerLine(record, "/home/user/project", "connected");
+  assert.equal(line, "[acpx] session calm-forest (abc123) · /home/user/project · agent connected");
+});
+
+test("session banner status distinguishes cold start from an unreachable owner", () => {
+  assert.equal(classifySessionConnectionStatus({ healthy: true, hasLease: true }), "connected");
+  assert.equal(classifySessionConnectionStatus({ healthy: false, hasLease: false }), "starting");
   assert.equal(
-    line,
-    "[acpx] session calm-forest (abc123) · /home/user/project · agent needs reconnect",
+    classifySessionConnectionStatus({ healthy: false, hasLease: true }),
+    "needs reconnect",
   );
 });
 
@@ -256,7 +279,7 @@ test("formatPromptSessionBannerLine includes routed-from path when cwd differs",
   const line = formatPromptSessionBannerLine(record, "/home/user/project/src/auth");
   assert.equal(
     line,
-    "[acpx] session calm-forest (abc123) · /home/user/project (routed from ./src/auth) · agent needs reconnect",
+    "[acpx] session calm-forest (abc123) · /home/user/project (routed from ./src/auth) · agent starting",
   );
 });
 
