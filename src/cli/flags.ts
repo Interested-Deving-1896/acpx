@@ -21,6 +21,7 @@ import {
   type PermissionMode,
 } from "../types.js";
 import type { ResolvedAcpxConfig } from "./config.js";
+import { toTimerMilliseconds } from "./timer-duration.js";
 
 export type PermissionFlags = {
   approveAll?: boolean;
@@ -159,7 +160,11 @@ export function parseTimeoutSeconds(value: string): number {
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new InvalidArgumentError("Timeout must be a positive number of seconds");
   }
-  return Math.round(parsed * 1000);
+  const milliseconds = toTimerMilliseconds(parsed, false);
+  if (milliseconds === undefined) {
+    throw new InvalidArgumentError("Timeout exceeds the maximum supported timer delay");
+  }
+  return milliseconds;
 }
 
 export function parseTtlSeconds(value: string): number {
@@ -167,7 +172,11 @@ export function parseTtlSeconds(value: string): number {
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new InvalidArgumentError("TTL must be a non-negative number of seconds");
   }
-  return Math.round(parsed * 1000);
+  const milliseconds = toTimerMilliseconds(parsed, true);
+  if (milliseconds === undefined) {
+    throw new InvalidArgumentError("TTL exceeds the maximum supported timer delay");
+  }
+  return milliseconds;
 }
 
 export function parseSessionName(value: string): string {
