@@ -12,6 +12,8 @@ Repo: https://github.com/openclaw/acpx
 
 ### Breaking
 
+- Runtime API: require `AcpRuntimeTurn.promptStarted`, which settles after `connection.prompt()` returns its request promise or fails beforehand.
+
 ### Fixes
 
 - Runtime/embedding: settle turn results only after lifecycle persistence and client cleanup attempts finish, including unexpected finalization failures.
