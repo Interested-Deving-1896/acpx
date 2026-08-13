@@ -160,6 +160,11 @@ test("AcpRuntimeManager reuses compatible records without spawning a new client"
 
 test("AcpRuntimeManager creates and resumes sessions through the client", async () => {
   const store = new InMemorySessionStore();
+  const permissionPolicy = {
+    autoApprove: ["read"],
+    escalate: ["execute"],
+    defaultAction: "deny" as const,
+  };
   const lifecycle = {
     pid: 456,
     startedAt: "2026-01-01T00:00:00.000Z",
@@ -220,12 +225,12 @@ test("AcpRuntimeManager creates and resumes sessions through the client", async 
     clearEventHandlers: () => {},
     setEventHandlers: () => {},
   });
-  let constructed = 0;
+  const constructedOptions: Array<Record<string, unknown>> = [];
   const manager = new AcpRuntimeManager(
-    createRuntimeOptions({ cwd: "/workspace", sessionStore: store }),
+    createRuntimeOptions({ cwd: "/workspace", sessionStore: store, permissionPolicy }),
     {
-      clientFactory: () => {
-        constructed += 1;
+      clientFactory: (options) => {
+        constructedOptions.push(options);
         return createClient() as never;
       },
     },
@@ -258,7 +263,11 @@ test("AcpRuntimeManager creates and resumes sessions through the client", async 
     resumed.acpx?.config_options?.map((option) => option.id),
     ["model"],
   );
-  assert.equal(constructed, 2);
+  assert.equal(constructedOptions.length, 2);
+  assert.deepEqual(
+    constructedOptions.map((options) => options.permissionPolicy),
+    [permissionPolicy, permissionPolicy],
+  );
 });
 
 test("AcpRuntimeManager creates a fresh record for each oneshot session", async () => {
@@ -694,6 +703,10 @@ test("AcpRuntimeManager persists prompt response usage and surfaces it in status
 });
 
 test("AcpRuntimeManager restores persisted session env when reconnecting startTurn", async () => {
+  const permissionPolicy = {
+    autoDeny: ["execute"],
+    defaultAction: "approve" as const,
+  };
   const record = makeSessionRecord({
     acpxRecordId: "turn-env-session",
     acpSessionId: "turn-env-sid",
@@ -732,7 +745,7 @@ test("AcpRuntimeManager restores persisted session env when reconnecting startTu
     setEventHandlers: () => {},
   };
   const manager = new AcpRuntimeManager(
-    createRuntimeOptions({ cwd: "/workspace", sessionStore: store }),
+    createRuntimeOptions({ cwd: "/workspace", sessionStore: store, permissionPolicy }),
     {
       clientFactory: (options) => {
         factoryCalls.push(options);
@@ -756,6 +769,10 @@ test("AcpRuntimeManager restores persisted session env when reconnecting startTu
       GIT_AUTHOR_EMAIL: "turn-env@example.local",
     },
   });
+  assert.deepEqual(
+    (factoryCalls[0] as { permissionPolicy?: unknown }).permissionPolicy,
+    permissionPolicy,
+  );
 });
 
 test("AcpRuntimeManager keeps reusable persistent clients pooled across turns and closes them on runtime close", async () => {
@@ -2145,6 +2162,10 @@ test("AcpRuntimeManager honors aborts requested before prompt starts after onesh
 });
 
 test("AcpRuntimeManager handles offline oneshot controls, status, close, and missing records", async () => {
+  const permissionPolicy = {
+    autoDeny: ["execute"],
+    defaultAction: "approve" as const,
+  };
   const record = makeSessionRecord({
     acpxRecordId: "offline-session:oneshot:1",
     acpSessionId: "offline-sid",
@@ -2154,11 +2175,13 @@ test("AcpRuntimeManager handles offline oneshot controls, status, close, and mis
   const store = new InMemorySessionStore([record]);
   const setModeSessions: string[] = [];
   const setConfigSessions: string[] = [];
+  const constructedOptions: Array<Record<string, unknown>> = [];
   const manager = new AcpRuntimeManager(
-    createRuntimeOptions({ cwd: "/workspace", sessionStore: store }),
+    createRuntimeOptions({ cwd: "/workspace", sessionStore: store, permissionPolicy }),
     {
-      clientFactory: () =>
-        ({
+      clientFactory: (options) => {
+        constructedOptions.push(options);
+        return {
           start: async () => {},
           close: async () => {},
           createSession: async () => ({ sessionId: "fresh-offline" }),
@@ -2179,7 +2202,8 @@ test("AcpRuntimeManager handles offline oneshot controls, status, close, and mis
           },
           clearEventHandlers: () => {},
           setEventHandlers: () => {},
-        }) as never,
+        } as never;
+      },
     },
   );
 
@@ -2195,6 +2219,10 @@ test("AcpRuntimeManager handles offline oneshot controls, status, close, and mis
 
   assert.deepEqual(setModeSessions, ["fresh-offline", "fresh-offline"]);
   assert.deepEqual(setConfigSessions, ["fresh-offline"]);
+  assert.deepEqual(
+    constructedOptions.map((options) => options.permissionPolicy),
+    [permissionPolicy, permissionPolicy],
+  );
 
   const closed = await store.load("offline-session:oneshot:1");
   assert.equal(closed?.closed, true);
@@ -2207,6 +2235,10 @@ test("AcpRuntimeManager handles offline oneshot controls, status, close, and mis
 });
 
 test("AcpRuntimeManager closes the backend session when discarding persistent state", async () => {
+  const permissionPolicy = {
+    autoApprove: ["read"],
+    defaultAction: "deny" as const,
+  };
   const record = makeSessionRecord({
     acpxRecordId: "discard-session",
     acpSessionId: "discard-sid",
@@ -2217,11 +2249,13 @@ test("AcpRuntimeManager closes the backend session when discarding persistent st
   let startCalls = 0;
   let closeCalls = 0;
   const closedSessionIds: string[] = [];
+  const constructedOptions: Array<Record<string, unknown>> = [];
   const manager = new AcpRuntimeManager(
-    createRuntimeOptions({ cwd: "/workspace", sessionStore: store }),
+    createRuntimeOptions({ cwd: "/workspace", sessionStore: store, permissionPolicy }),
     {
-      clientFactory: () =>
-        ({
+      clientFactory: (options) => {
+        constructedOptions.push(options);
+        return {
           start: async () => {
             startCalls += 1;
           },
@@ -2246,7 +2280,8 @@ test("AcpRuntimeManager closes the backend session when discarding persistent st
           setSessionConfigOption: async () => {},
           clearEventHandlers: () => {},
           setEventHandlers: () => {},
-        }) as never,
+        } as never;
+      },
     },
   );
 
@@ -2257,6 +2292,7 @@ test("AcpRuntimeManager closes the backend session when discarding persistent st
   assert.equal(startCalls, 1);
   assert.equal(closeCalls, 1);
   assert.deepEqual(closedSessionIds, ["discard-sid"]);
+  assert.deepEqual(constructedOptions[0]?.permissionPolicy, permissionPolicy);
   const closed = await store.load("discard-session");
   assert.equal(closed?.closed, true);
   assert.equal(typeof closed?.closedAt, "string");
