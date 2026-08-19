@@ -8,6 +8,14 @@ Repo: https://github.com/openclaw/acpx
 
 ### Changes
 
+### Breaking
+
+### Fixes
+
+## 2026.8.18 (v0.13.1)
+
+### Changes
+
 - Docs/readme: rewrite the project front door to the house standard and route detailed CLI guidance to the existing documentation.
 
 - Runtime/embedding: expose the existing per-tool permission policy through
