@@ -16,6 +16,7 @@ Repo: https://github.com/openclaw/acpx
 
 - Flows: coalesce heartbeat writes while storage is busy so slow filesystems do not accumulate overlapping writes and stall running steps.
 - Flows: keep the host alive when a shell action closes stdin before consuming its input. Thanks @SebTardif.
+- ACP/terminal: handle child stdout and stderr errors without terminating the host, so wait and release can finish. Thanks @SebTardif.
 
 ## 2026.8.28 (v0.13.2)
 
