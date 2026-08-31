@@ -15,6 +15,7 @@ Repo: https://github.com/openclaw/acpx
 ### Fixes
 
 - Flows: coalesce heartbeat writes while storage is busy so slow filesystems do not accumulate overlapping writes and stall running steps.
+- Flows: keep the host alive when a shell action closes stdin before consuming its input. Thanks @SebTardif.
 
 ## 2026.8.28 (v0.13.2)
 
