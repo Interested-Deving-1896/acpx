@@ -10,6 +10,7 @@ import { safeSessionId, sessionBaseDir } from "../event-log.js";
 import {
   loadOrRebuildSessionIndex,
   rebuildSessionIndex,
+  scanSessionIndex,
   toSessionIndexEntry,
   writeSessionIndex,
   type SessionIndexEntry,
@@ -24,6 +25,7 @@ type FindSessionOptions = {
   cwd: string;
   name?: string;
   includeClosed?: boolean;
+  readOnly?: boolean;
 };
 
 type FindSessionByDirectoryWalkOptions = {
@@ -53,10 +55,13 @@ async function loadRecordFromIndexEntry(
   }
 }
 
-async function loadSessionIndexEntries(): Promise<SessionIndexEntry[]> {
-  await ensureSessionDir();
+async function loadSessionIndexEntries(readOnly = false): Promise<SessionIndexEntry[]> {
+  if (!readOnly) {
+    await ensureSessionDir();
+  }
   const index = await measurePerf("session.index_load", async () => {
-    return await loadOrRebuildSessionIndex(sessionBaseDir());
+    const load = readOnly ? scanSessionIndex : loadOrRebuildSessionIndex;
+    return await load(sessionBaseDir());
   });
   return index.entries;
 }
@@ -100,12 +105,11 @@ export async function writeSessionRecord(record: SessionRecord): Promise<void> {
 export async function resolveSessionRecord(sessionId: string): Promise<SessionRecord> {
   await ensureSessionDir();
 
-  const directPath = sessionFilePath(sessionId);
   try {
-    const directPayload = await measurePerf("session.resolve_direct", async () => {
-      return await fs.readFile(directPath, "utf8");
-    });
-    const directRecord = parseSessionRecord(JSON.parse(directPayload));
+    const directRecord = await measurePerf(
+      "session.resolve_direct",
+      async () => await readSessionRecord(sessionId),
+    );
     if (directRecord) {
       return directRecord;
     }
@@ -142,6 +146,24 @@ export async function resolveSessionRecord(sessionId: string): Promise<SessionRe
 
   incrementPerfCounter("session.resolve_miss");
   throw new SessionNotFoundError(sessionId);
+}
+
+/** Reads a canonical record without creating directories or rebuilding the lookup index. */
+export async function readSessionRecord(sessionId: string): Promise<SessionRecord | undefined> {
+  let payload: string;
+  try {
+    payload = await fs.readFile(sessionFilePath(sessionId), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+  try {
+    return parseSessionRecord(JSON.parse(payload)) ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function hasGitDirectory(dir: string): boolean {
@@ -225,7 +247,7 @@ export async function listSessionsForAgent(agentCommand: string): Promise<Sessio
 export async function findSession(options: FindSessionOptions): Promise<SessionRecord | undefined> {
   const normalizedCwd = absolutePath(options.cwd);
   const normalizedName = normalizeName(options.name);
-  const entries = await loadSessionIndexEntries();
+  const entries = await loadSessionIndexEntries(options.readOnly);
   const match = entries.find(
     (session) =>
       session.agentCommand === options.agentCommand &&
