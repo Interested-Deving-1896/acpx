@@ -56,6 +56,21 @@ For applications using `acpx/runtime`, `AcpxRuntime.setConfigOption(...)` return
 
 For model selection in an application, use `runtime.setModel({ handle, model })`. It uses the adapter's advertised model control and saves the accepted selection for reconnect. Read `runtime.getStatus({ handle })` for the current model and available IDs. Treat each model ID as opaque.
 
+Embedded `setModel`, `setMode`, and `setConfigOption` calls also accept optional `signal` and `assertActive` fields. Supply a synchronous `assertActive` callback that throws when the host no longer permits the operation. Authority is checked after queue and storage waits and before the request is handed to the ACP SDK. Rejection preserves the original abort reason or callback error.
+
+```typescript
+await runtime.setModel({
+  handle,
+  model: selectedModel,
+  signal: abortController.signal,
+  assertActive,
+});
+```
+
+These fields guard request admission. After SDK admission, the response and accepted state still settle even if the signal aborts or host authority changes. This keeps the saved selection consistent with the agent. Callers that omit the fields retain their existing behavior.
+
+The same guard applies to each saved mode, model, and configuration control replayed during reconnect. Revocation stops later replay requests and preserves the original rejection. Replies already accepted by the agent remain saved, including any adjusted sibling selections.
+
 ### `set model <id>`
 
 `set model <id>` is a special-case interception. `acpx` prefers an advertised model session config option and updates it through `session/set_config_option`. If an adapter explicitly advertises legacy `models` metadata instead, `acpx` preserves compatibility through `session/set_model`.
