@@ -431,6 +431,8 @@ export class AcpClient {
   private readonly cancellingSessionIds = new Set<string>();
   private readonly permissionAbortControllers = new Map<string, AbortController>();
   private closing = false;
+  // Bumped by close() so a start() still launching can tell it was abandoned.
+  private closeEpoch = 0;
   private agentStartedAt?: string;
   private lastAgentExit?: AgentExitInfo;
   private lastKnownPid?: number;
@@ -627,16 +629,19 @@ export class AcpClient {
       await this.close();
     }
 
+    const epoch = this.closeEpoch;
     const maxMessageBytes = readMaxAcpMessageBytes();
     const launch = await this.resolveAgentLaunchPlan();
     this.logAgentLaunch(launch);
     await this.ensureLaunchSupport(launch);
     const { child, process: startedProcess } = await this.spawnAgentProcess(launch);
-    this.agent = child;
-    this.closing = false;
-    this.agentStartedAt = startedProcess.startedAt;
-    this.lastAgentExit = undefined;
-    this.lastKnownPid = startedProcess.pid;
+    if (this.closeEpoch === epoch) {
+      this.agent = child;
+      this.closing = false;
+      this.agentStartedAt = startedProcess.startedAt;
+      this.lastAgentExit = undefined;
+      this.lastKnownPid = startedProcess.pid;
+    }
     const startupStderr: string[] = [];
 
     child.stderr.on("data", (chunk: Buffer | string) => {
@@ -657,6 +662,7 @@ export class AcpClient {
       startupFailure.dispose();
       throw error;
     }
+    await this.stopIfClosedDuringLaunch(epoch, child, startupFailure);
 
     const input = Writable.toWeb(child.stdin);
     const output = Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>;
@@ -1541,6 +1547,7 @@ export class AcpClient {
 
   async close(): Promise<void> {
     this.closing = true;
+    this.closeEpoch += 1;
     this.abortActiveElicitation();
 
     await this.terminalManager.shutdown();
@@ -1586,6 +1593,20 @@ export class AcpClient {
     this.initResult = undefined;
     this.connection = undefined;
     this.agent = undefined;
+  }
+
+  // Retire only this launch: close() may already have been followed by a replacement start().
+  private async stopIfClosedDuringLaunch(
+    epoch: number,
+    child: ChildProcessByStdio<Writable, Readable, Readable>,
+    startupFailure: StartupFailureWatcher,
+  ): Promise<void> {
+    if (this.closeEpoch === epoch) {
+      return;
+    }
+    startupFailure.dispose();
+    await this.terminateAgentProcess(child);
+    throw new Error("ACP client was closed while the agent was starting");
   }
 
   private abortActiveElicitation(): void {
