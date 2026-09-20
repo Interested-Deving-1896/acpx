@@ -6,6 +6,10 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+## 0.17.1 - 2026-09-19
+
+**Highlights:** Configured runtime initialization deadlines now stop unresponsive agents and clean up abandoned launches safely. Embedding hosts gain model inspection and session-specific permissions. Antigravity joins the built-in agents; its fixed-choice questions require an interactive client, including for existing custom launchers.
+
 ### Changes
 
 - Dependencies: update fs-safe to 0.12.0 and Zod to 4.6.5, including the matching native filesystem packages.
