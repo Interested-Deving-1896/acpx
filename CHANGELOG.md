@@ -6,39 +6,42 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+## 0.18.0 - 2026-09-20
+
+### Highlights
+
+- **Shared-session controls:** change modes, models, and configuration through the shared runtime, and inspect capabilities without shelling out to the CLI.
+- **More reliable sessions:** preserve final output, usage, and accepted settings across cancellation, timeouts, reconnects, and owner transitions.
+- **Safer permissions:** keep interactive approvals separate, reject stale requests, and recheck authority before file writes or terminal launches.
+
 ### Changes
 
-- Runtime/shared sessions: set the mode, model, and config options of a shared session, and read its capabilities, without shelling out to the CLI. Controls run on the session's queue owner and fail with `ACP_BACKEND_UNAVAILABLE` when no owner holds it. Thanks @saariuslystoned.
+- Runtime/shared sessions: add `setMode()`, `setModel()`, `setConfigOption()`, and `getCapabilities()` to `createSharedAcpRuntime()`. Settings are applied by the running queue owner; without one, control requests fail with `ACP_BACKEND_UNAVAILABLE`. Thanks @saariuslystoned.
+
+### Upgrade notes
+
+- Shared sessions: update all participating clients and let older queue owners expire while idle before resuming work. The stronger ownership guards and control-persistence guarantees require updated clients and owners; mixed versions retain the older race conditions.
+- Replay viewer: wildcard binds (`--host 0.0.0.0` or `--host ::`) now reject unconfigured DNS aliases with HTTP 403. Use a numeric interface address, or bind with `--host <hostname>` to keep using that hostname.
 
 ### Fixes
 
-- Sessions/prune: recheck saved closed and agent state before pruning, and preserve neighboring sessions whose IDs overlap history filenames.
-- Permissions/output: match complete leading action words when inferring tool kinds, so read-like substrings in edit or command titles neither grant read approval nor hide their output.
-- Agents/config: preserve custom names such as `constructor` and `__proto__` through resolution, listing, and config display instead of treating them as inherited object properties.
-- CLI/config: load project permissions and relative MCP configuration from the final top-level `--cwd` and `--mcp-config` values, matching command execution.
-- CLI/output: honor explicit JSON and quiet output flags for configuration startup errors instead of printing an uncaught stack trace.
+- Sessions/timeouts: require a final ACP response before reporting completion, preserve late response outcomes, and retire unfinished connections before queued successors resume the saved session.
+- Sessions/cancellation: stop retries cancelled during backoff or prompt admission without discarding completed responses or cancelling independent queued turns. Soft-closing an active session preserves its final cancellation output, usage, and configuration updates.
+- Sessions/controls: apply settings on the retained adapter even while idle, save accepted mode, model, and configuration changes before acknowledgement, and preserve them through prompt completion, timeout cleanup, and close.
+- Runtime/controls: preserve completed output, usage, and accepted settings when control responses overlap turn finalization; wait for admitted controls before one-shot cleanup.
+- Runtime/sessions: reject incompatible replacement while turns or controls remain unfinished, preserve live state during compatible `ensureSession()` calls, and retire old owners before publishing replacements. Do not reuse closed one-shot owners.
+- Sessions/ownership: serialize abandoned turn recovery and final cleanup across processes, preserve live owners, and prevent cancelled waiters from acquiring a later turn.
+- Sessions/queue: serialize owner handoffs, heartbeats, and stale cleanup so an old cleanup cannot delete a replacement lease or socket. Preserve owners when process liveness is uncertain and drain shutdown after guard cleanup failures.
+- Model controls: validate selections against the connected session's advertised models, including after reconnect, while preserving exact IDs, Cursor's unique aliases, and the accepted configuration response.
 - Permissions: serialize interactive tool, file-write, and terminal questions so one answer cannot approve multiple requests; deny waiting questions when stdin closes.
 - Permissions/runtime: retire pending tool, file, and terminal requests with their owning prompt or ACP request, reject late approvals, and recheck authority before filesystem mutations and every terminal spawn attempt.
-- Sessions/timeouts: require a final ACP response for completion, preserve late response outcomes, and retire unfinished connections before queued successors resume the saved session.
-- Filesystem: preserve symlink and parent-directory traversal when reading or writing ACP paths, including aliased working directories, instead of selecting an unrelated lexical target.
-- Compare/input: honor prompt delimiters with files or stdin, and use command-local cwd for project configuration and relative input paths.
-- Compare/cancellation: stop launching remaining agents after process interruption, await active cleanup, and exit with code 130.
-- Sessions/close: preserve final cancellation output, usage and configuration updates when soft-closing an active session.
-- Sessions/retries: stop queued attempts after cancellation during backoff or prompt admission, while preserving already-received final responses and independent queued turns.
-
-- Sessions/ownership: serialize abandoned turn recovery and final cleanup across processes, preserve live owners, and keep cancelled waiters from acquiring a later turn.
-
-- Sessions/controls: update the retained adapter while idle, save accepted mode/model/configuration changes before acknowledgement, and preserve them across prompt completion, timeout cleanup, and close.
-
-- Model controls: validate selections against the connected session's advertised models, including after reconnect, while preserving exact IDs, Cursor's unique aliases, and the accepted configuration response.
-
-- Sessions/queue: serialize owner handoffs, heartbeats, and stale cleanup across processes so an old cleanup cannot delete a replacement lease or socket; preserve owners when process liveness is uncertain and drain shutdown after guard cleanup failures.
-
-- Replay viewer: reject foreign Host and Origin headers before HTTP access, WebSocket subscriptions, or shutdown, and fix IPv6 listener URLs and status/stop commands while preserving native clients without an Origin header.
-
-- Runtime/controls: preserve completed output, usage, and accepted settings when control responses overlap turn finalization, and wait for admitted controls before one-shot cleanup.
-
-- Runtime/sessions: reject incompatible replacement while turns or controls remain unfinished, preserve live state during compatible ensure, and retire old owners before publishing a replacement; avoid reusing closed one-shot owners.
+- Permissions/output: infer tool kinds from complete leading action words, so read-like substrings in edit or command titles neither grant read approval nor hide their output.
+- Filesystem: preserve symlink and parent-directory traversal when reading or writing ACP paths, including aliased working directories, instead of accessing an unrelated lexical target.
+- Sessions/prune: recheck saved closed and agent state before pruning, and preserve neighboring sessions whose IDs overlap history filenames.
+- CLI/config: load project permissions and relative MCP configuration from the final top-level `--cwd` and `--mcp-config` values. Preserve custom agent names such as `constructor` and `__proto__` in resolution, listing, and config display.
+- CLI/output: honor explicit JSON and quiet output flags for configuration startup errors instead of printing an uncaught stack trace.
+- Compare: honor prompt delimiters with files or stdin, and resolve project configuration and relative input paths from the command's working directory. On interruption, stop launching agents, await active cleanup, and exit with code 130.
+- Replay viewer: reject foreign Host and Origin headers before HTTP access, WebSocket subscriptions, or shutdown, while preserving native clients without an Origin header. Fix IPv6 listener URLs and status/stop commands.
 
 ## 0.17.1 - 2026-09-19
 
