@@ -43,6 +43,8 @@ Repo: https://github.com/openclaw/acpx
 - Conformance: separate mock-specific requirements from the core adapter profile, use baseline resource links, accept standard resource-not-found errors, and clarify prompt completion and cancellation responses.
 - Conformance/filesystem: keep callback reads, writes, and scratch-file cleanup inside the session cwd after resolving symlinks, while preserving contained aliases and parent traversal.
 
+- Windows/terminals: clean up observed detached descendants when releasing directly launched terminal commands, verifying process identities before signaling and preserving unrelated processes.
+
 ## 0.18.0 - 2026-09-20
 
 ### Highlights
