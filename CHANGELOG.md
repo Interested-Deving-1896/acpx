@@ -30,6 +30,8 @@ Repo: https://github.com/openclaw/acpx
 
 - Terminals: stop descendant polling when cleanup reaches its deadline so timed-out releases do not leave background timers retaining terminal state.
 
+- Runtime/events: release buffered output and stop collecting future events when a consumer leaves a turn's event stream, while letting the turn finish independently.
+
 ## 0.18.0 - 2026-09-20
 
 ### Highlights
