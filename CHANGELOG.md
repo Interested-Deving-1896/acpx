@@ -27,6 +27,8 @@ Repo: https://github.com/openclaw/acpx
 
 - Flows: release settled ACP event-write promises during long prompts while preserving journal drain, sequence ranges, and failure ordering.
 
+- Terminals: stop descendant polling when cleanup reaches its deadline so timed-out releases do not leave background timers retaining terminal state.
+
 ## 0.18.0 - 2026-09-20
 
 ### Highlights
