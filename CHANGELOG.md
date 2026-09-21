@@ -46,6 +46,8 @@ Repo: https://github.com/openclaw/acpx
 
 - Windows/terminals: clean up observed detached descendants when releasing directly launched terminal commands, verifying process identities before signaling and preserving unrelated processes.
 
+- Sessions/close: wait for the selected queue owner to exit when it releases its lease during shutdown, without signaling a replacement owner.
+
 ## 0.18.0 - 2026-09-20
 
 ### Highlights
