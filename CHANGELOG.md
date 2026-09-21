@@ -6,6 +6,10 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+### Changes
+
+- Runtime/embedding: expose optional `fs` and `terminal` capability switches on `AcpRuntimeOptions`, matching `AcpClientOptions`. Omitted options stay enabled; retained connections keep their original policy; health probes disable both callbacks while retaining the host permission policy. Disabled ACP callbacks are a protocol policy, not an OS sandbox. Thanks @saariuslystoned and @devSejung.
+
 ### Fixes
 
 - Sessions/storage: resolve scope, directory, ID, listing, and prune queries from current saved records instead of stale index metadata; save checkpoints without a shared index write that can fail after the record is committed. Ignore mismatched record filenames so copied records cannot create false matches or authorize pruning another record.

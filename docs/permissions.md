@@ -178,6 +178,19 @@ acpx --no-terminal codex exec 'summarize using the available capabilities'
 
 This disables terminal operations provided by the acpx client. It does not prevent the adapter from running its own native tools or child processes. Use the adapter's controls or an external sandbox when those operations must be restricted.
 
+## Embedded runtime filesystem and terminal callbacks
+
+Embedding hosts can set `AcpRuntimeOptions.fs` and `AcpRuntimeOptions.terminal`
+to the same switches already available on `AcpClientOptions`. Omitted options
+stay enabled. ACPX applies them when creating or reconnecting a session client,
+including control-only reconnections. A retained connection keeps its original
+capability. Health probes always disable both callbacks and ignore these
+options. Shared CLI sessions do not accept them; those belong to the in-process
+owner.
+
+As with the CLI flags, disabling these callbacks is a protocol callback policy,
+not an OS sandbox for the agent's own filesystem or process access.
+
 ## Authentication
 
 Permissions and auth are separate. ACP `authenticate` handshakes are configured through:
