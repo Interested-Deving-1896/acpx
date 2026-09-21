@@ -26,6 +26,7 @@ Repo: https://github.com/openclaw/acpx
 - Sessions/queue: release completed IPC sockets and buffered output when a waiting client stops reading, without waiting for the shared owner to shut down.
 - Sessions/queue: preserve progressing Windows named-pipe readers, and release stalled live-output observers on macOS and Linux without cancelling or replaying their admitted prompts or disconnecting quiet active turns.
 - Runtime/capabilities: return independent mutable capability snapshots so editing one result cannot change another caller's controls or advertised config keys.
+- Runtime/processes: retire idle agents and delegated terminals when their ACP transport disconnects, and share in-flight cleanup so an old connection cannot close its replacement.
 - Docs/site: preserve Markdown link destinations containing underscores, query parameters, and attribute characters while keeping label formatting and relative links intact.
 - Windows/processes: clean up observed ACP bridge descendants after close, startup failure, or bridge exit, checking process creation timestamps before terminating them and ignoring stale parent links from reused PIDs.
 - PR-triage example: preserve the repository in pasted PR URLs, normalize decimal PR numbers without changing their identity, validate complete batches before dispatch, and support macOS Bash 3.2 with separate jobs for equal PR numbers in different repositories.
