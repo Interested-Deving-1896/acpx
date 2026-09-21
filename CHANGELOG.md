@@ -51,6 +51,7 @@ Repo: https://github.com/openclaw/acpx
 - Conformance/filesystem: honor requested read line windows using the production client's selection logic, including empty windows, without bypassing permission or filesystem checks.
 
 - Sessions/queue: verify the owner's OS birth identity before forced retirement so stale leases cannot terminate a different process that reused the PID. Use boot- and namespace-scoped Linux start ticks that survive wall-clock changes. Preserve healthy legacy IPC use and report unverified live ownership without discarding its lease.
+- Sessions/locks: record process birth on new turn and queue mutation locks so abandoned locks can recover after PID reuse; bound identity queries while preserving live and uncertain owners.
 
 ## 0.18.0 - 2026-09-20
 
