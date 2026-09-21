@@ -25,6 +25,8 @@ Repo: https://github.com/openclaw/acpx
 - Sessions/config: preserve config-option transport for newly saved options named `mode`, including replay after reconnect, without overwriting independent legacy mode preferences.
 - Sessions/modes: allow an explicit mode change to replace a retired saved mode during fresh fallback while preserving sibling settings, rejection semantics, and same-session requirements.
 
+- Flows: release settled ACP event-write promises during long prompts while preserving journal drain, sequence ranges, and failure ordering.
+
 ## 0.18.0 - 2026-09-20
 
 ### Highlights
