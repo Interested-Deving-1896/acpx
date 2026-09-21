@@ -50,6 +50,8 @@ Repo: https://github.com/openclaw/acpx
 - Conformance: reject malformed case/profile instructions and duplicate IDs before starting adapters; preserve negative protocol payloads and literal saved keys so inherited object properties cannot produce false passing assertions.
 - Conformance/filesystem: honor requested read line windows using the production client's selection logic, including empty windows, without bypassing permission or filesystem checks.
 
+- Sessions/queue: verify the owner's OS birth identity before forced retirement so stale leases cannot terminate a different process that reused the PID. Use boot- and namespace-scoped Linux start ticks that survive wall-clock changes. Preserve healthy legacy IPC use and report unverified live ownership without discarding its lease.
+
 ## 0.18.0 - 2026-09-20
 
 ### Highlights
