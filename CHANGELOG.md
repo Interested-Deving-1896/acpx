@@ -6,6 +6,10 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+### Fixes
+
+- Watching: drain retained events when a session closes while its observer is paused, preserving unfinished-outcome errors and exclusive cursor resumption.
+
 ## 0.19.1 - 2026-09-22
 
 ### Fixes

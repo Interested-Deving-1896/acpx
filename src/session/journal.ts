@@ -558,6 +558,15 @@ type WatchSessionOptions = {
   continueWatching?: (record: SessionRecord, pendingRequestId: string | null) => Promise<boolean>;
 };
 
+type WatchPage = {
+  hasMore: boolean;
+  requestId: string | null;
+  events: readonly JournalEvent[];
+};
+type WatchObservation = {
+  terminal?: { requestId: string | null; error?: SessionWatchError };
+};
+
 export function watchSession(options: WatchSessionOptions): AsyncIterable<SessionWatchEvent> {
   return {
     [Symbol.asyncIterator]() {
@@ -599,6 +608,7 @@ async function* iterateJournal(
   let after = options.cursor === undefined ? -1 : parseCursor(record.acpxRecordId, options.cursor);
   const reader = new SessionJournalReader(record);
   let first = true;
+  const observation: WatchObservation = {};
   for (;;) {
     if (signal.aborted) {
       return;
@@ -619,7 +629,7 @@ async function* iterateJournal(
       after = sequence;
       yield event;
     }
-    if (!(await continueAfterPage(record, snapshot, options))) {
+    if (!(await continueAfterPage(record, snapshot, options, observation))) {
       return;
     }
   }
@@ -627,16 +637,30 @@ async function* iterateJournal(
 
 async function continueAfterPage(
   record: SessionRecord,
-  snapshot: { hasMore: boolean; requestId: string | null },
+  snapshot: WatchPage,
   options: WatchSessionOptions & { signal: AbortSignal },
+  observation: WatchObservation,
 ): Promise<boolean> {
+  if (options.signal.aborted || confirmsTerminalObservation(snapshot, observation)) {
+    return false;
+  }
   if (!snapshot.hasMore && options.continueWatching) {
-    const keep = await settleUnlessAborted(
+    const decision = await settleUnlessAborted(
       options.continueWatching(record, snapshot.requestId),
       options.signal,
-    );
-    if (!keep) {
-      return false;
+    ).catch((error: unknown) => {
+      if (error instanceof SessionWatchError && error.code === "WATCH_OUTCOME_UNKNOWN") {
+        return error;
+      }
+      throw error;
+    });
+    if (decision !== true) {
+      // Drain fresh history before acting on closure or an unknown-outcome decision.
+      observation.terminal = {
+        requestId: snapshot.requestId,
+        error: decision instanceof SessionWatchError ? decision : undefined,
+      };
+      return !options.signal.aborted;
     }
   }
   await settleUnlessAborted(
@@ -644,6 +668,24 @@ async function continueAfterPage(
     options.signal,
   );
   return !options.signal.aborted;
+}
+
+function confirmsTerminalObservation(snapshot: WatchPage, observation: WatchObservation): boolean {
+  const terminal = observation.terminal;
+  delete observation.terminal;
+  if (
+    !terminal ||
+    snapshot.events.length > 0 ||
+    snapshot.hasMore ||
+    snapshot.requestId !== terminal.requestId
+  ) {
+    return false;
+  }
+  // Apply the saved decision before another awaited policy check can stale this read.
+  if (terminal.error) {
+    throw terminal.error;
+  }
+  return true;
 }
 
 function assertRetainedCursor(
