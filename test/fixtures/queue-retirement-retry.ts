@@ -11,6 +11,7 @@ import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { withTimeout } from "../../src/async-control.js";
 import {
   compareProcessBirthIdentity,
   observeProcessIncarnation,
@@ -230,6 +231,31 @@ function savedReceiptWitnesses(sessionId: string): Witness[] {
   return raw.retirement?.descendants ?? [];
 }
 
+export async function settleRetirerHelpers(
+  helpers: { child: ChildProcess; closed: Promise<void> }[],
+): Promise<void> {
+  const results = await Promise.allSettled(
+    helpers.map(async ({ child, closed }) => {
+      // The production deadline unrefs helpers before close. Restore this fixture's
+      // reference so its final report cannot disappear with an unsettled await.
+      child.ref();
+      try {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill("SIGKILL");
+        }
+        await withTimeout(closed, 5_000);
+      } finally {
+        child.unref();
+      }
+    }),
+  );
+  for (const result of results) {
+    if (result.status === "rejected") {
+      throw result.reason;
+    }
+  }
+}
+
 async function runWorker(mode: RetirerMode, sessionId: string): Promise<void> {
   const originalExecFile = childProcess.execFile.bind(childProcess);
   const rename = fs.rename.bind(fs);
@@ -326,14 +352,7 @@ async function runWorker(mode: RetirerMode, sessionId: string): Promise<void> {
     }
   } finally {
     // Join every helper directly; a failed Node24 assertion need not print after hooks.
-    await Promise.all(
-      helpers.map(async ({ child, closed }) => {
-        if (child.exitCode === null && child.signalCode === null) {
-          child.kill("SIGKILL");
-        }
-        await closed;
-      }),
-    );
+    await settleRetirerHelpers(helpers);
   }
   process.stdout.write(JSON.stringify(report));
 }
