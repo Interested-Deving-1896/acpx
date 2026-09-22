@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import childProcess, { spawn, type ExecFileOptionsWithStringEncoding } from "node:child_process";
-import { once } from "node:events";
+import childProcess, {
+  type ChildProcess,
+  type ExecFileOptionsWithStringEncoding,
+} from "node:child_process";
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { describe, test } from "node:test";
-import { setTimeout as delay } from "node:timers/promises";
 import {
   isProcessAlive,
   readQueueOwnerRecord,
@@ -13,50 +14,40 @@ import {
   terminateQueueOwnerForSession,
 } from "../src/session/queue/lease-store.js";
 import {
+  startWitnessedTree,
+  stopWitnesses,
+  witnessStates,
+} from "./fixtures/queue-retirement-retry.js";
+import {
   queuePaths,
   withTempHome,
   writeQueueOwnerLock,
   verifiedProcessIdentity,
 } from "./queue-test-helpers.js";
 
-async function startOwnerTree() {
-  // Every fixture process has its own deadline even if an assertion fails.
-  const leaf = "setTimeout(() => process.exit(0), 30_000)";
-  const bridge = `
-    const { spawn } = require('node:child_process');
-    const child = spawn(process.execPath, ['-e', ${JSON.stringify(leaf)}], {
-      stdio: 'ignore', detached: true,
-    });
-    child.once('spawn', () => process.send([process.pid, child.pid]));
-    ${leaf};
-  `;
-  const source = `
-    const { spawn } = require('node:child_process');
-    const child = spawn(process.execPath, ['-e', ${JSON.stringify(bridge)}], {
-      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
-    });
-    child.once('message', (pids) => process.send([process.pid, ...pids]));
-    ${leaf};
-  `;
-  const owner = spawn(process.execPath, ["-e", source], {
-    stdio: ["ignore", "ignore", "ignore", "ipc"],
-    detached: true,
-  });
-  const [message] = await once(owner, "message", { signal: AbortSignal.timeout(10_000) });
-  assert(Array.isArray(message));
-  assert.equal(message.length, 3);
-  assert(message.every((pid: unknown) => typeof pid === "number" && pid > 0));
-  return { owner, pids: message as number[] };
-}
-
-async function stopFixtureProcesses(pids: number[]): Promise<void> {
-  for (const pid of pids.toReversed()) {
-    if (isProcessAlive(pid)) {
-      process.kill(pid, "SIGKILL");
+async function settleOwnerTree(
+  tree: Awaited<ReturnType<typeof startWitnessedTree>>,
+  helper?: ChildProcess,
+  helperClosed?: Promise<void>,
+): Promise<void> {
+  const finishHelper = async () => {
+    try {
+      if (helper && helper.exitCode === null && helper.signalCode === null) {
+        helper.kill("SIGKILL");
+      }
+    } finally {
+      await helperClosed;
     }
-  }
-  for (let attempt = 0; attempt < 100 && pids.some(isProcessAlive); attempt += 1) {
-    await delay(10);
+  };
+  const results = await Promise.allSettled([
+    stopWitnesses(tree.expectedWitnesses),
+    tree.closed,
+    finishHelper(),
+  ]);
+  for (const result of results) {
+    if (result.status === "rejected") {
+      throw result.reason;
+    }
   }
 }
 
@@ -70,7 +61,9 @@ describe(
       test(`${mode} checks the owner generation before retiring its process tree`, async () => {
         await withTempHome(async (homeDir) => {
           const sessionId = `windows-retirement-${mode}`;
-          const { owner, pids } = await startOwnerTree();
+          const tree = await startWitnessedTree();
+          const owner = tree.child;
+          const pids = tree.witnesses.map((witness) => witness.pid);
           const paths = queuePaths(homeDir, sessionId);
           const previousCwd = process.cwd();
           try {
@@ -102,17 +95,25 @@ describe(
             }
             if (mode === "replacement") {
               assert(pids.every(isProcessAlive), "an old generation must not kill a replacement");
+              assert.deepEqual(
+                await witnessStates(tree.expectedWitnesses),
+                tree.expectedWitnesses.map(() => "matching"),
+              );
               assert.equal(
                 (await readQueueOwnerRecord(sessionId))?.ownerGeneration,
                 observed.ownerGeneration + 1,
               );
             } else {
               assert.deepEqual(pids.map(isProcessAlive), [false, false, false]);
+              assert.deepEqual(
+                await witnessStates(tree.expectedWitnesses),
+                tree.expectedWitnesses.map(() => "gone"),
+              );
               assert.equal(await readQueueOwnerRecord(sessionId), undefined);
             }
           } finally {
             process.chdir(previousCwd);
-            await stopFixtureProcesses(pids);
+            await settleOwnerTree(tree);
           }
         });
       });
@@ -122,11 +123,14 @@ describe(
       test(`taskkill ${failure} rejects and retains the owner lease`, async (context) => {
         await withTempHome(async (homeDir) => {
           const sessionId = `windows-retirement-${failure}`;
-          const { owner, pids } = await startOwnerTree();
+          const tree = await startWitnessedTree();
+          const owner = tree.child;
+          const pids = tree.witnesses.map((witness) => witness.pid);
           const paths = queuePaths(homeDir, sessionId);
           const execFile = childProcess.execFile;
           const processIdentity = await verifiedProcessIdentity(owner.pid);
           let helper: ReturnType<typeof execFile> | undefined;
+          let helperClosed: Promise<void> | undefined;
           const helperSource =
             failure === "timeout"
               ? "setInterval(() => {}, 1000)"
@@ -146,16 +150,29 @@ describe(
             );
             assert.deepEqual(args, ["/pid", String(owner.pid), "/T", "/F"]);
             helper = execFile(process.execPath, ["-e", helperSource], options, callback);
+            const spawned = helper;
+            helperClosed = new Promise((resolve) => spawned.once("close", () => resolve()));
             return helper;
           }) as typeof childProcess.execFile);
           syncBuiltinESMExports();
           try {
             await writeQueueOwnerLock({ ...paths, sessionId, pid: owner.pid, processIdentity });
-            const original = await fs.readFile(paths.lockPath, "utf8");
+            const original = await readQueueOwnerRecord(sessionId);
             await assert.rejects(terminateQueueOwnerForSession(sessionId), {
               code: failure === "timeout" ? "ETIMEDOUT" : 23,
             });
-            assert.equal(await fs.readFile(paths.lockPath, "utf8"), original);
+            const retained = await readQueueOwnerRecord(sessionId);
+            assert(retained?.retirement);
+            assert.deepEqual(
+              { ...retained, retirement: undefined },
+              { ...original, retirement: undefined },
+            );
+            assert.deepEqual(
+              retained.retirement.descendants.toSorted((a, b) => a.pid - b.pid),
+              tree.expectedWitnesses
+                .filter((witness) => witness.pid !== owner.pid)
+                .toSorted((a, b) => a.pid - b.pid),
+            );
             assert.deepEqual(
               pids.map(isProcessAlive),
               [failure !== "partial", failure !== "partial", true],
@@ -164,7 +181,7 @@ describe(
           } finally {
             stub.mock.restore();
             syncBuiltinESMExports();
-            await stopFixtureProcesses([...pids, ...(helper?.pid ? [helper.pid] : [])]);
+            await settleOwnerTree(tree, helper, helperClosed);
           }
         });
       });
