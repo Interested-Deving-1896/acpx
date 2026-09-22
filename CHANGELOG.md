@@ -8,6 +8,7 @@ Repo: https://github.com/openclaw/acpx
 
 ### Fixes
 
+- Sessions/watch: detect departed queue owners after PID reuse without signaling unrelated processes or changing session state. Bound identity observations and reread the journal after slow queries so replacement owners and settled results win over an unknown-outcome error.
 - Watching: drain retained events when a session closes while its observer is paused, preserving unfinished-outcome errors and exclusive cursor resumption.
 - PR triage example: collect all review/comment pages and query CI runs for the observed PR head instead of the oldest commit.
 - Replay viewer: preserve recorded attempt order when timestamps tie or move backward, and carry rounded seconds into minute duration labels.
