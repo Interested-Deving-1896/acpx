@@ -6,6 +6,12 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+### Highlights
+
+- **Reliable session output:** detect departed queue owners after PID reuse, drain retained events on close, and spool slow readers' output within bounded storage without cancelling their prompts.
+- **Replay viewer stability:** preserve playback timing, graph visibility, conversation context, and the latest run selection, with live-stream recovery after transient read failures.
+- **Better PR triage evidence:** collect every review/comment page, query CI for the observed PR head, preserve final review text, and report the latest completed conflict outcome.
+
 ### Fixes
 
 - Sessions/watch: detect departed queue owners after PID reuse without signaling unrelated processes or changing session state. Bound identity observations and reread the journal after slow queries so replacement owners and settled results win over an unknown-outcome error.
