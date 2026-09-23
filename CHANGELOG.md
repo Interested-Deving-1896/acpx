@@ -6,6 +6,8 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+## 0.19.2 - 2026-09-23
+
 ### Highlights
 
 - **Reliable session output:** detect departed queue owners after PID reuse, drain retained events on close, and spool slow readers' output within bounded storage without cancelling their prompts.
