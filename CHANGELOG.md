@@ -6,6 +6,10 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+### Fixes
+
+- Windows/authentication: preserve inherited credential values when auth aliases use different environment-variable casing.
+
 ## 0.19.2 - 2026-09-23
 
 ### Highlights
