@@ -6,11 +6,7 @@ import {
   isAcpQueryClosedBeforeResponseError,
   isAcpResourceNotFoundError,
 } from "../../acp/error-normalization.js";
-import {
-  assertRequestedModelSupported,
-  modelStateFromConfigOptions,
-  type SessionModelState,
-} from "../../acp/model-support.js";
+import { assertRequestedModelSupported, type SessionModelState } from "../../acp/model-support.js";
 import {
   assertControlAuthority,
   InterruptedError,
@@ -50,6 +46,11 @@ import {
   reconcileAgentSessionId,
   sessionHasAgentMessages,
 } from "./lifecycle.js";
+import {
+  mergeSessionOptions,
+  sessionOptionsFromRecord,
+  type SessionAgentOptions,
+} from "./session-options.js";
 
 export type ConnectedSessionController = {
   hasActivePrompt: () => boolean;
@@ -66,6 +67,7 @@ export type ConnectAndLoadSessionOptions = {
   client: AcpClient;
   record: SessionRecord;
   resumePolicy?: SessionResumePolicy;
+  sessionOptions?: SessionAgentOptions;
   replacingMode?: true;
   replacingConfigOption?: {
     key: string;
@@ -258,9 +260,7 @@ async function replayDesiredModel(params: {
     );
     params.replay.acknowledged = true;
     params.record.acpx = applyModelSelection(params.record.acpx, params.desiredModelId, response);
-    const models = response
-      ? modelStateFromConfigOptions(response.configOptions)
-      : { ...params.models, currentModelId: params.desiredModelId };
+    const models = advertisedModelState(params.record.acpx);
     if (params.verbose) {
       process.stderr.write(
         `[acpx] replayed desired model ${params.desiredModelId} on ACP session ${params.sessionId} (previous ${params.previousSessionId})\n`,
@@ -359,10 +359,10 @@ async function replayDesiredConfigOptions(params: {
         value,
         response,
       );
-      acceptedConfigOptions = response.configOptions;
+      acceptedConfigOptions = params.record.acpx.config_options;
       result = {
         replayed: true,
-        models: modelStateFromConfigOptions(response.configOptions),
+        models: advertisedModelState(params.record.acpx),
       };
       if (params.verbose) {
         process.stderr.write(
@@ -414,7 +414,15 @@ export async function connectAndLoadSession(
   if (reusingLoadedSession) {
     incrementPerfCounter("runtime.connect_and_load.reused_session");
   } else {
-    await withTimeout(client.start(options.authority), options.timeoutMs);
+    await withTimeout(
+      client.start(options.authority, {
+        sessionOptions: mergeSessionOptions(
+          options.sessionOptions,
+          sessionOptionsFromRecord(record),
+        ),
+      }),
+      options.timeoutMs,
+    );
   }
   assertControlAuthority(options.authority);
   options.onClientAvailable?.(options.activeController);
