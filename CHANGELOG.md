@@ -6,13 +6,21 @@ Repo: https://github.com/openclaw/acpx
 
 ## Unreleased
 
+## 0.19.3 - 2026-09-25
+
+### Highlights
+
+- **More reliable sessions:** protect imported history, retry failed checkpoints, and preserve accepted settings and correct ownership across replacement and resume.
+- **Complete output and cleanup:** receive large queued responses, retain diagnostics after disconnects, and wait for terminal cleanup while allowing completed flow commands to exit.
+- **Replay viewer usability:** improve attempt navigation, conversation following, graph edges, tool status, and layouts on narrower screens.
+
 ### Fixes
 
 - Windows/authentication: preserve inherited credential values when auth aliases use different environment-variable casing.
 - Replay viewer: let arrow keys select previous and next attempts without snapping back on every key release, and keep playback running when tabbing into the scrubber.
 - Replay viewer: reapply follow centering when a graph viewport is replaced, even when its target and layout identifiers are unchanged.
 - Replay viewer: restore conversation auto-follow on session changes and replay resume, and preserve upward keyboard or scrollbar scrolling after content updates that do not move the pane.
-- Sessions/filesystem: update fs-safe to 0.18.1 so lock waits use elapsed time across system-clock adjustments and temporary output storage uses verified directory ownership.
+- Sessions/filesystem: update fs-safe to 0.18.1 so lock waits use elapsed time across system-clock adjustments and temporary output storage uses verified directory ownership. Thanks @vincentkoc.
 - Sessions/import: publish imported history before making its session discoverable, so a failed history write does not leave a partial session that blocks retrying the archive.
 - Sessions/journal: retry captures changed by rotation without skipping retained events or reporting false corruption, and preserve reader progress when a page fails or is cancelled.
 - Sessions/checkpoints: keep failed saves pending so later flushes retry current state without losing updates or allowing replacement to bypass persistent storage failures.
@@ -24,9 +32,7 @@ Repo: https://github.com/openclaw/acpx
 - Replay viewer: mark the selected ACP conversation slice while paused without hiding surrounding messages or moving them when selection changes.
 - Replay viewer: keep forward branch merges solid and correctly ranked, and style return edges from their final layout direction while preserving loops and unused graph components.
 - Flow shell actions no longer keep a completed CLI alive when a surviving descendant inherits stdout or stderr.
-
 - CLI/sessions: show compact image labels in history instead of raw base64, preserving MIME types and older image records. Thanks @rome-xi and @odrobnik.
-
 - Sessions: preserve the previous session when replacement fails, keep model choices and permission results scoped to each turn, and retain config catalogs when an accepted control omits them. Thanks @odrobnik.
 - ACP/CLI: retain reconnect metadata and Claude settings isolation, correlate recovered load errors by direction, and report agent disconnects after partial exec output. Thanks @odrobnik.
 - CLI/history: make `help` display usage and preserve Unicode when trimming saved conversation text. Thanks @odrobnik.
@@ -36,12 +42,11 @@ Repo: https://github.com/openclaw/acpx
 - Conformance: join adapter, descendant, and transport cleanup before reporting; retain original errors alongside cleanup failures, stop later cases after incomplete retirement, and clean up before exiting on catchable interruption.
 - Sessions/resume: retire the original session owner before resuming the same local record from another cwd or name, including `sessions ensure`, so subsequent prompts use the requested workspace.
 - Replay viewer: show pending tools as running when status-only updates contain no raw output, while preserving completed and failed results.
-
 - Conformance: require completed filesystem callbacks with matching parameters and outcomes in the mock permission/read/write cases, so agent prose alone cannot make them pass.
 - Replay viewer: keep the graph, playback controls, inspector, and run selector accessible when panels stack on narrower screens.
-
 - Conformance: require per-prompt update evidence for single- and multi-turn checks instead of borrowing setup output or accumulated earlier updates.
 - Terminals: wait for admitted terminal creation and its cleanup before reporting session or runtime shutdown complete, including children still awaiting spawn adoption.
+- Docs/runtime: clarify that in-process steer turns wait for the active prompt and shared runtimes reject them. Thanks @saariuslystoned.
 
 ## 0.19.2 - 2026-09-23
 
