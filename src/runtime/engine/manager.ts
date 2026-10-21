@@ -330,6 +330,8 @@ export class AcpRuntimeManager {
     const clientOptions: ConstructorParameters<typeof AcpClient>[0] = {
       ...options,
       agentProcessEnv: this.options.agentProcessEnv,
+      agentProcessEnvAllow: this.options.agentProcessEnvAllow,
+      agentProcessEnvBlock: this.options.agentProcessEnvBlock,
       processLifecycle: {
         ...options.processLifecycle,
         onBeforeSpawn: async (launch) => {
